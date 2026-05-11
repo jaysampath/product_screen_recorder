@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem \"d:\\\\myapps\\\\product_screen_recorder\" -Force)",
+      "Bash(npm install *)"
+    ]
+  }
+}

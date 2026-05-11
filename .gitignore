@@ -1,0 +1,36 @@
+node_modules
+out
+dist
+.DS_Store
+*.log
+
+node_modules
+out
+dist
+.DS_Store
+*.log
+
+# Vite/Electron
+.electron-vite
+.vite
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+~*
+
+# Build output
+release
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Environment (uncomment if needed)
+# .env
+# .env.local
+
+# Coverage (if used)
+coverage
