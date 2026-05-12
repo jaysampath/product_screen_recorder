@@ -8,7 +8,9 @@ import {
   shell,
   protocol,
   net,
-  globalShortcut
+  globalShortcut,
+  dialog,
+  systemPreferences
 } from 'electron'
 import { join, dirname } from 'path'
 import { promises as fs } from 'fs'
@@ -21,8 +23,50 @@ import clickStore from './clickStore.js'
 import { getVideoMetadata, extractThumbnail, convertToMp4, cancelProcessing } from './ffmpeg.js'
 import { processZoom } from './zoomProcessor.js'
 import { processRecording } from './processor.js'
+import { initUpdater } from './updater.js'
 
-const store = new Store()
+const store = new Store({
+  defaults: {
+    recording: {
+      quality: 'high',
+      fps: 60,
+      includeDesktopAudio: true,
+      includeMic: false,
+      micDeviceId: null,
+      showClickRipple: true,
+      clickRippleColor: '#f97316',
+      rippleSize: 'medium',
+      showKeystrokeOverlay: true,
+      showCursorHighlight: true,
+      autoZoom: true,
+      zoomLevel: 2.0,
+      zoomInDuration: 0.3,
+      holdDuration: 0.5,
+      zoomOutDuration: 0.3,
+    },
+    storage: {
+      outputDirectory: null,
+      keepOriginalWebm: false,
+      autoDeleteAfterDays: 0,
+    },
+    ui: {
+      controlBarPosition: null,
+      libraryView: 'grid',
+    },
+    shortcuts: {
+      startStop: 'CommandOrControl+Shift+R',
+      pauseResume: 'CommandOrControl+Shift+P',
+      discard: 'CommandOrControl+Shift+D',
+    },
+    onboarding: {
+      completed: false,
+      completedAt: null,
+    },
+  },
+})
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+const resourcesPath = isDev ? join(__dirname, '..') : process.resourcesPath
 
 let mainWindow = null
 let overlayWindow = null
@@ -524,7 +568,90 @@ ipcMain.handle(
   }
 )
 
+// ── IPC: settings ────────────────────────────────────────────────────────────
+
+ipcMain.handle('get-settings', () => store.store)
+
+ipcMain.handle('set-setting', (_event, { key, value }) => {
+  store.set(key, value)
+  return { success: true }
+})
+
+ipcMain.handle('reset-settings', () => {
+  store.clear()
+  return store.store
+})
+
+ipcMain.handle('get-audio-devices', async () => {
+  return { useRenderer: true }
+})
+
+ipcMain.handle('open-directory-picker', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+  return result.canceled ? null : result.filePaths[0]
+})
+
+ipcMain.handle('get-app-version', () => app.getVersion())
+
+ipcMain.handle('open-recordings-folder', async () => {
+  await shell.openPath(getRecordingsDir())
+  return { success: true }
+})
+
+// ── IPC: onboarding ──────────────────────────────────────────────────────────
+
+ipcMain.handle('get-onboarding-status', () =>
+  store.get('onboarding.completed', false))
+
+ipcMain.handle('complete-onboarding', () => {
+  store.set('onboarding.completed', true)
+  store.set('onboarding.completedAt', Date.now())
+  return { success: true }
+})
+
+ipcMain.handle('check-permissions', async () => {
+  if (process.platform !== 'darwin') {
+    return { screen: 'granted', mic: 'granted', accessibility: 'granted' }
+  }
+  return {
+    screen: systemPreferences.getMediaAccessStatus('screen'),
+    mic: systemPreferences.getMediaAccessStatus('microphone'),
+    accessibility: systemPreferences.isTrustedAccessibilityClient(false)
+      ? 'granted'
+      : 'denied'
+  }
+})
+
+ipcMain.handle('open-system-preferences', async (_event, { pane }) => {
+  const urls = {
+    screen: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+    mic: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+    accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+  }
+  await shell.openExternal(urls[pane])
+})
+
+ipcMain.handle('get-primary-screen-source', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 200, height: 120 }
+  })
+  const src = sources[0]
+  return {
+    id: src.id,
+    name: src.name,
+    thumbnail: src.thumbnail.toDataURL()
+  }
+})
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
+
+async function checkMacPermissions() {
+  const screenAccess = systemPreferences.getMediaAccessStatus('screen')
+  if (screenAccess !== 'granted') {
+    console.log('Screen recording permission not granted')
+  }
+}
 
 app.whenReady().then(async () => {
   // Serve local recordings via media:// — forwards Range headers so seeking works.
@@ -552,6 +679,8 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+  initUpdater(mainWindow)
+  if (process.platform === 'darwin') await checkMacPermissions()
   createOverlayWindow()
 
   const savedPos = await loadControlBarPosition()

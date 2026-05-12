@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import SourcePicker from './components/SourcePicker'
 import Library from './pages/Library'
+import Settings from './pages/Settings'
+import UpdateBanner from './components/UpdateBanner'
+import Onboarding from './pages/Onboarding'
 import { useRecorder } from './hooks/useRecorder'
 
 const NAV_ITEMS = [
@@ -42,6 +45,7 @@ function formatDuration(secs) {
 }
 
 export default function App() {
+  const [view, setView] = useState('loading')
   const [activeNav, setActiveNav] = useState('library')
   const [showSourcePicker, setShowSourcePicker] = useState(false)
 
@@ -92,6 +96,13 @@ export default function App() {
     }
   }, [status])
 
+  // Check onboarding completion on first mount
+  useEffect(() => {
+    window.electron.invoke('get-onboarding-status').then((completed) => {
+      setView(completed ? 'app' : 'onboarding')
+    })
+  }, [])
+
   // Handle control commands forwarded from the control bar window (via main process)
   // statusRef avoids stale closure in the pause-toggle handler
   const statusRef = useRef(status)
@@ -114,6 +125,21 @@ export default function App() {
       window.electron.off('control-discard', l5)
     }
   }, [pauseRecording, resumeRecording, stopRecording, discardRecording])
+
+  if (view === 'loading') {
+    return <div style={{ background: '#0f0f0f', width: '100vw', height: '100vh' }} />
+  }
+
+  if (view === 'onboarding') {
+    return (
+      <Onboarding
+        onComplete={(mode) => {
+          setView('app')
+          if (mode === 'record') setTimeout(() => setShowSourcePicker(true), 50)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={{ background: '#0f0f0f' }}>
@@ -211,8 +237,8 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar — hidden for library which has its own header */}
-        {activeNav !== 'library' && (
+        {/* Topbar — hidden for library and settings which have their own headers */}
+        {activeNav !== 'library' && activeNav !== 'settings' && (
           <header
             className="flex items-center px-6 flex-shrink-0"
             style={{
@@ -233,6 +259,8 @@ export default function App() {
                 if (to === 'record') setShowSourcePicker(true)
               }}
             />
+          ) : activeNav === 'settings' ? (
+            <Settings />
           ) : (
             <div className="flex items-center justify-center h-full select-none">
               <p className="text-gray-600 text-sm">
@@ -340,6 +368,8 @@ export default function App() {
           onClose={() => setShowSourcePicker(false)}
         />
       )}
+
+      <UpdateBanner />
 
     </div>
   )

@@ -1,3 +1,63 @@
+appId: com.recordqa.app
+productName: RecordQA
+copyright: "Copyright © 2024 RecordQA"
+
+directories:
+  buildResources: resources
+  output: release
+
+files:
+  - dist/**
+  - dist-electron/**
+  - "!**/*.map"
+  - "!**/node_modules/**"
+
 asarUnpack:
   - "node_modules/ffmpeg-static/**"
   - "node_modules/ffprobe-static/**"
+  - "node_modules/uiohook-napi/**"
+  - "node_modules/@uiohook/**"
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: resources/icon.icns
+  category: public.app-category.productivity
+  darkModeSupport: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  extendInfo:
+    NSScreenCaptureUsageDescription: "RecordQA needs screen recording to capture your screen."
+    NSMicrophoneUsageDescription: "RecordQA uses your microphone for voice narration."
+
+dmg:
+  title: "RecordQA ${version}"
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: RecordQA
+
+publish:
+  provider: github
+  owner: REPLACE_WITH_YOUR_GITHUB_USERNAME
+  repo: recordqa-releases
+  private: false
