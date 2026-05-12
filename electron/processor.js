@@ -22,7 +22,12 @@ export async function processRecording({
   onProgress({ stage: 0, stageName: stages[0], stageProgress: 0, overallPercent: 0 })
   const metadata = await getVideoMetadata(webmPath)
   if (!metadata.duration || metadata.duration < 0.5) {
-    throw new Error('Recording too short or corrupted')
+    // MediaRecorder WebM may not embed duration even after extended probing;
+    // accept the file if it has enough data to be a real recording (>50 KB).
+    const { size: fileSize } = fs.statSync(webmPath)
+    if (fileSize < 50_000) {
+      throw new Error('Recording too short or corrupted')
+    }
   }
   onProgress({ stage: 0, stageName: stages[0], stageProgress: 100, overallPercent: 5 })
 

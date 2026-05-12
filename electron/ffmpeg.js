@@ -32,7 +32,9 @@ export async function getVideoMetadata(filePath) {
   }
 
   return new Promise((resolve, reject) => {
-    fluentFfmpeg.ffprobe(filePath, (err, metadata) => {
+    // MediaRecorder WebM files don't embed duration in the container header;
+    // force ffprobe to scan enough data to derive it from stream content.
+    fluentFfmpeg.ffprobe(filePath, ['-analyzeduration', '100M', '-probesize', '100M'], (err, metadata) => {
       if (err) {
         reject(new Error(`ffprobe failed: ${err.message}`))
         return
@@ -47,8 +49,11 @@ export async function getVideoMetadata(filePath) {
         if (den && den !== 0) fps = Math.round(num / den)
       }
 
+      // Fall back to stream-level duration when format-level duration is absent (common for MediaRecorder WebM)
+      const duration = parseFloat(format.duration) || parseFloat(videoStream.duration) || 0
+
       resolve({
-        duration: parseFloat(format.duration) || 0,
+        duration,
         fps,
         width: videoStream.width || 0,
         height: videoStream.height || 0,
