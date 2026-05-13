@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import os from 'os'
 
 const electronAPI = {
   platform: process.platform,
+  homedir: os.homedir(),
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
   on: (channel, callback) => {
     const listener = (_event, ...args) => callback(...args)

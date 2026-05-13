@@ -25,7 +25,7 @@ export default function StepReady({ onComplete }) {
   }
 
   const displayDir = recordingsDir
-    ? recordingsDir.replace(process.env.HOME || '', '~').replace(/\\/g, '/')
+    ? recordingsDir.replace(window.electron.homedir || '', '~').replace(/\\/g, '/')
     : '…'
 
   return (
