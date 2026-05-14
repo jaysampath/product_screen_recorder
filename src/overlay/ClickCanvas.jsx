@@ -117,6 +117,7 @@ export default function ClickCanvas() {
     window.addEventListener('resize', resize)
 
     function handleClick(data) {
+      cursorRef.current = { x: data.x, y: data.y, visible: true }
       ripplesRef.current.push({
         x: data.x,
         y: data.y,

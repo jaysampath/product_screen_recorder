@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { getVideoMetadata, extractThumbnail, convertToMp4 } from './ffmpeg.js'
+import { getVideoMetadata, extractThumbnail } from './ffmpeg.js'
 import { processZoom } from './zoomProcessor.js'
 import clickStore from './clickStore.js'
 
@@ -16,8 +16,7 @@ export async function processRecording({
 
   const stages = [
     'Validating recording',
-    'Applying zoom effects',
-    'Converting to MP4',
+    'Processing video',
     'Generating thumbnail'
   ]
 
@@ -49,76 +48,48 @@ export async function processRecording({
 
   onProgress({ stage: 0, stageName: stages[0], stageProgress: 100, overallPercent: 5 })
 
-  // Stage 2 — Zoom (5→50%) — skipped if autoZoom disabled
-  const zoomedPath = webmPath.replace('.webm', '-zoomed.webm')
-  const clickEvents = clickStore.exportForFFmpeg(recordingStartTime, effectiveMetadata.fps)
-  console.log('[processor] autoZoom:', settings?.recording?.autoZoom, '| clickEvents captured:', clickEvents.length)
-
-  if (settings?.recording?.autoZoom) {
-    console.log('[processor] Stage 2: Applying zoom effects...')
-    onProgress({ stage: 1, stageName: stages[1], stageProgress: 0, overallPercent: 5 })
-    const zoomResult = await processZoom(
-      webmPath,
-      zoomedPath,
-      clickEvents,
-      { width: screenWidth, height: screenHeight },
-      effectiveMetadata,
-      settings.recording,
-      (p) => {
-        console.log('[processor] zoom progress:', p.percent + '%', p.timemark)
-        onProgress({
-          stage: 1,
-          stageName: stages[1],
-          stageProgress: p.percent,
-          overallPercent: 5 + p.percent * 0.45
-        })
-      }
-    )
-    console.log('[processor] Zoom result:', zoomResult)
-  } else {
-    console.log('[processor] Stage 2: Skipping zoom (autoZoom disabled)')
-  }
-
-  const inputForConvert = fs.existsSync(zoomedPath) ? zoomedPath : webmPath
-  console.log('[processor] Stage 3: Converting to MP4, input:', inputForConvert)
-
-  // Stage 3 — Convert to MP4 (50→95%)
+  // Stage 2 — Process (5→90%) — zoom + convert combined
   const mp4Path = webmPath.replace('.webm', '.mp4')
-  onProgress({ stage: 2, stageName: stages[2], stageProgress: 0, overallPercent: 50 })
-  await convertToMp4(
-    inputForConvert,
+  const clickEvents = settings?.recording?.autoZoom
+    ? clickStore.exportForFFmpeg(recordingStartTime, effectiveMetadata.fps)
+    : []
+  console.log('[processor] autoZoom:', settings?.recording?.autoZoom, '| clickEvents captured:', clickEvents.length)
+  console.log('[processor] Stage 2: Processing video...')
+  onProgress({ stage: 1, stageName: stages[1], stageProgress: 0, overallPercent: 5 })
+  const processResult = await processZoom(
+    webmPath,
     mp4Path,
+    clickEvents,
+    { width: screenWidth, height: screenHeight },
+    effectiveMetadata,
+    settings?.recording,
     (p) => {
-      console.log('[processor] convert progress:', p.percent + '%', p.timemark)
+      console.log('[processor] process progress:', p.percent + '%', p.timemark)
       onProgress({
-        stage: 2,
-        stageName: stages[2],
+        stage: 1,
+        stageName: stages[1],
         stageProgress: p.percent,
-        overallPercent: 50 + p.percent * 0.45
+        overallPercent: 5 + p.percent * 0.85
       })
-    },
-    effectiveMetadata.fps
+    }
   )
-  console.log('[processor] MP4 conversion done:', mp4Path)
+  console.log('[processor] Processing result:', processResult)
 
-  // Stage 4 — Thumbnail (95→100%)
-  console.log('[processor] Stage 4: Generating thumbnail...')
-  onProgress({ stage: 3, stageName: stages[3], stageProgress: 0, overallPercent: 95 })
+  // Stage 3 — Thumbnail (90→95%)
+  console.log('[processor] Stage 3: Generating thumbnail...')
+  onProgress({ stage: 2, stageName: stages[2], stageProgress: 0, overallPercent: 90 })
   const thumbnail = await extractThumbnail(mp4Path)
-  onProgress({ stage: 3, stageName: stages[3], stageProgress: 100, overallPercent: 100 })
+  onProgress({ stage: 2, stageName: stages[2], stageProgress: 100, overallPercent: 95 })
   console.log('[processor] Thumbnail generated, length:', thumbnail?.length)
 
-  // Cleanup intermediate files
-  if (fs.existsSync(zoomedPath)) {
-    console.log('[processor] Cleaning up zoomed intermediate file')
-    fs.unlinkSync(zoomedPath)
-  }
+  // Cleanup (95→100%)
   if (!settings?.storage?.keepOriginalWebm) {
     try {
       fs.unlinkSync(webmPath)
       console.log('[processor] Original WebM deleted')
     } catch {}
   }
+  onProgress({ stage: 2, stageName: stages[2], stageProgress: 100, overallPercent: 100 })
 
   clickStore.clear()
   console.log('[processor] Processing complete:', mp4Path)

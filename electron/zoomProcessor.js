@@ -4,6 +4,7 @@ import ffprobeStatic from 'ffprobe-static'
 import { app } from 'electron'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { detectHardwareEncoder } from './ffmpeg.js'
 
 function fixAsarPath(p) {
   return app.isPackaged ? p.replace('app.asar', 'app.asar.unpacked') : p
@@ -13,6 +14,32 @@ fluentFfmpeg.setFfmpegPath(fixAsarPath(ffmpegStaticPath))
 fluentFfmpeg.setFfprobePath(fixAsarPath(ffprobeStatic.path))
 
 const MERGE_DISTANCE_SEC = 1.5
+
+async function convertWithoutZoom(inputPath, outputPath, fps, onProgress) {
+  const encoder = await detectHardwareEncoder()
+  const isHW = encoder !== 'libx264'
+  console.log('[zoom] plain convert — encoder:', encoder, '| input:', inputPath, '| output:', outputPath)
+  await fs.mkdir(path.dirname(outputPath), { recursive: true })
+  return new Promise((resolve, reject) => {
+    const proc = fluentFfmpeg(inputPath)
+      .addOption('-y')
+      .videoCodec(encoder)
+      .addOutputOption(isHW ? '-rc:v vbr -cq:v 23' : '-crf 23 -preset ultrafast')
+      .addOutputOption('-movflags +faststart')
+      .audioCodec('aac')
+      .audioBitrate('128k')
+    if (fps && fps >= 1 && fps <= 120) proc.addOutputOption(`-r ${fps}`)
+    proc.output(outputPath)
+      .on('start', (cmd) => console.log('[zoom] plain convert command:', cmd))
+      .on('stderr', (line) => console.log('[zoom]', line))
+      .on('progress', (p) => {
+        if (onProgress) onProgress({ percent: Math.min(100, Math.round(p.percent || 0)), timemark: p.timemark || '00:00:00' })
+      })
+      .on('end', () => resolve({ success: true, outputPath, zoomCount: 0 }))
+      .on('error', (err) => reject(new Error(`Conversion failed: ${err.message}`)))
+      .run()
+  })
+}
 
 function mergeOverlappingZooms(events, fps, timing) {
   if (events.length === 0) return []
@@ -51,7 +78,7 @@ function mergeOverlappingZooms(events, fps, timing) {
   return merged
 }
 
-function buildZoompanFilter(zoomWindows, videoWidth, videoHeight, fps) {
+function buildZoompanFilter(zoomWindows, videoWidth, videoHeight, fps, duration) {
   function windowZExpr(w) {
     const inDur = w.peakFrame - w.startFrame
     const outDur = w.endFrame - w.holdEndFrame
@@ -84,7 +111,7 @@ function buildZoompanFilter(zoomWindows, videoWidth, videoHeight, fps) {
     '(ih-ih/zoom)/2'
   )
 
-  return `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=1:fps=${fps}:s=${videoWidth}x${videoHeight}`
+  return `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=${Math.ceil(duration * fps)}:fps=${fps}:s=${videoWidth}x${videoHeight}`
 }
 
 export async function processZoom(
@@ -94,30 +121,47 @@ export async function processZoom(
   screenDimensions,
   videoMetadata,
   settings,
-  onProgress
+  onProgress,
+  scaleFactor = 1,
+  recordingStartTime = 0
 ) {
   const { width: vw, height: vh, fps, duration } = videoMetadata
   const { width: sw, height: sh } = screenDimensions
   console.log('[zoom] processZoom called — clickEvents:', clickEvents.length, '| duration:', duration?.toFixed(1) + 's')
 
   if (duration < 1 || clickEvents.length === 0) {
-    console.log('[zoom] Skipping — duration too short or no click events')
-    return { success: true, outputPath: inputPath, zoomCount: 0 }
+    console.log('[zoom] No click events — converting without zoom')
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
   }
 
+  const totalFrames = Math.floor(duration * fps)
   const lastSafeFrame = Math.floor((duration - 0.5) * fps)
-  const safeClicks = clickEvents.filter(
+  const adjustedStart = recordingStartTime + 200
+
+  const eventsWithFrames = clickEvents.map((e) => ({
+    ...e,
+    frame: Math.max(
+      0,
+      Math.min(Math.floor(((e.timestamp - adjustedStart) / 1000) * fps), totalFrames - 1)
+    )
+  }))
+
+  const safeClicks = eventsWithFrames.filter(
     (e) => e.type === 'click' && e.frame <= lastSafeFrame
   )
 
   if (safeClicks.length === 0) {
-    return { success: true, outputPath: inputPath, zoomCount: 0 }
+    console.log('[zoom] No safe clicks — converting without zoom')
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
   }
+
+  const normalizedX = (x) => (x / scaleFactor) / vw
+  const normalizedY = (y) => (y / scaleFactor) / vh
 
   const normalized = safeClicks.map((e) => ({
     ...e,
-    cx: Math.round((e.x / sw) * vw),
-    cy: Math.round((e.y / sh) * vh)
+    cx: Math.round(normalizedX(e.x) * vw),
+    cy: Math.round(normalizedY(e.y) * vh)
   }))
 
   const peakZoom = settings?.zoomLevel ?? 2.0
@@ -140,26 +184,30 @@ export async function processZoom(
   const zoomWindows = mergeOverlappingZooms(normalized, fps, timing)
   console.log('[zoom] zoom windows after merge:', zoomWindows.length)
   if (zoomWindows.length === 0) {
-    console.log('[zoom] No valid zoom windows — skipping zoom step')
-    return { success: true, outputPath: inputPath, zoomCount: 0 }
+    console.log('[zoom] No valid zoom windows — converting without zoom')
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
   }
 
-  const zoomFilter = buildZoompanFilter(zoomWindows, vw, vh, fps)
+  const zoomFilter = buildZoompanFilter(zoomWindows, vw, vh, fps, duration)
   console.log('[zoom] Starting FFmpeg zoompan — this is slow for long recordings (frame-by-frame)')
   console.log('[zoom] Input:', inputPath, '| Output:', outputPath)
   console.log('[zoom] Duration:', duration.toFixed(1) + 's | FPS:', fps, '| Resolution:', vw + 'x' + vh)
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
 
+  const encoder = await detectHardwareEncoder()
+  const isHW = encoder !== 'libx264'
+  console.log('[zoom] encoder:', encoder)
+
   return new Promise((resolve, reject) => {
     fluentFfmpeg(inputPath)
       .addOption('-y')
       .videoFilter(zoomFilter)
-      .videoCodec('libx264')
-      .addOption('-crf', '23')
-      .addOption('-preset', 'fast')
-      .audioCodec('copy')
-      .addOption('-movflags', '+faststart')
+      .videoCodec(encoder)
+      .addOutputOption(isHW ? '-rc:v vbr -cq:v 23' : '-crf 23 -preset ultrafast')
+      .addOutputOption('-movflags +faststart')
+      .audioCodec('aac')
+      .audioBitrate('128k')
       .output(outputPath)
       .on('start', (cmd) => console.log('[zoom] FFmpeg command:', cmd))
       .on('stderr', (line) => console.log('[zoom]', line))

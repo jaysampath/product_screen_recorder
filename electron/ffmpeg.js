@@ -20,6 +20,18 @@ fluentFfmpeg.setFfprobePath(ffprobeBin)
 // outputPath → fluent-ffmpeg process ref, used for cancellation
 const activeProcesses = new Map()
 
+export async function detectHardwareEncoder() {
+  return new Promise((resolve) => {
+    fluentFfmpeg.getAvailableEncoders((err, encoders) => {
+      if (err) return resolve('libx264')
+      // Priority order for Windows
+      const hwEncoders = ['h264_nvenc', 'h264_amf', 'h264_qsv']
+      const available = hwEncoders.find(e => encoders[e])
+      resolve(available || 'libx264')
+    })
+  })
+}
+
 export async function getVideoMetadata(filePath) {
   try {
     await fs.access(filePath)
@@ -121,18 +133,19 @@ export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
       return
     }
 
-    console.log('[ffmpeg] convertToMp4 started:', inputPath, '->', outputPath)
+    const encoder = await detectHardwareEncoder()
+    const isHW = encoder !== 'libx264'
+    console.log('[ffmpeg] convertToMp4 started:', inputPath, '->', outputPath, '| encoder:', encoder)
     const proc = fluentFfmpeg(inputPath)
       .addOption('-y')
-      .videoCodec('libx264')
-      .addOption('-crf', '23')
-      .addOption('-preset', 'fast')
+      .videoCodec(encoder)
+      .addOutputOption(isHW ? '-rc:v vbr -cq:v 23' : '-crf 23 -preset ultrafast')
+      .addOutputOption('-movflags +faststart')
       .audioCodec('aac')
       .audioBitrate('128k')
-      .addOption('-movflags', '+faststart')
 
     // Force output fps to prevent WebM 1000/1 timebase causing massive frame duplication
-    if (fps && fps >= 1 && fps <= 120) proc.addOption('-r', String(fps))
+    if (fps && fps >= 1 && fps <= 120) proc.addOutputOption(`-r ${fps}`)
 
     proc.output(outputPath)
       .on('start', (cmd) => console.log('[ffmpeg] convert command:', cmd))

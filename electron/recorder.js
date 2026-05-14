@@ -110,6 +110,7 @@ export function startClickTracking(overlayWindow) {
 
   uIOhook.on('mousedown', (event) => {
     const clickData = {
+      type: 'click',
       x: event.x,
       y: event.y,
       button: event.button === 1 ? 'left' : 'right',
