@@ -6,6 +6,7 @@ import clickStore from './clickStore.js'
 export async function processRecording({
   webmPath,
   recordingStartTime,
+  recordingStopTime,
   screenWidth,
   screenHeight,
   settings,
@@ -34,11 +35,23 @@ export async function processRecording({
       throw new Error('Recording too short or corrupted')
     }
   }
+
+  // Use wall-clock times to compute actual duration when WebM metadata lacks it
+  const estimatedDuration =
+    recordingStopTime && recordingStartTime
+      ? (recordingStopTime - recordingStartTime) / 1000
+      : 0
+  const effectiveMetadata = {
+    ...metadata,
+    duration: metadata.duration > 0 ? metadata.duration : estimatedDuration
+  }
+  console.log('[processor] Effective duration:', effectiveMetadata.duration.toFixed(1) + 's | fps:', effectiveMetadata.fps)
+
   onProgress({ stage: 0, stageName: stages[0], stageProgress: 100, overallPercent: 5 })
 
   // Stage 2 — Zoom (5→50%) — skipped if autoZoom disabled
   const zoomedPath = webmPath.replace('.webm', '-zoomed.webm')
-  const clickEvents = clickStore.exportForFFmpeg(recordingStartTime, metadata.fps)
+  const clickEvents = clickStore.exportForFFmpeg(recordingStartTime, effectiveMetadata.fps)
   console.log('[processor] autoZoom:', settings?.recording?.autoZoom, '| clickEvents captured:', clickEvents.length)
 
   if (settings?.recording?.autoZoom) {
@@ -49,7 +62,7 @@ export async function processRecording({
       zoomedPath,
       clickEvents,
       { width: screenWidth, height: screenHeight },
-      metadata,
+      effectiveMetadata,
       settings.recording,
       (p) => {
         console.log('[processor] zoom progress:', p.percent + '%', p.timemark)
@@ -83,7 +96,8 @@ export async function processRecording({
         stageProgress: p.percent,
         overallPercent: 50 + p.percent * 0.45
       })
-    }
+    },
+    effectiveMetadata.fps
   )
   console.log('[processor] MP4 conversion done:', mp4Path)
 
@@ -112,7 +126,7 @@ export async function processRecording({
   return {
     mp4Path,
     thumbnail,
-    duration: metadata.duration,
+    duration: effectiveMetadata.duration,
     fileSize: fs.statSync(mp4Path).size
   }
 }

@@ -44,10 +44,18 @@ export async function getVideoMetadata(filePath) {
       const format = metadata.format || {}
 
       let fps = 30
-      if (videoStream.r_frame_rate) {
-        const [num, den] = videoStream.r_frame_rate.split('/').map(Number)
-        if (den && den !== 0) fps = Math.round(num / den)
+      const tryParseFps = (str) => {
+        if (!str) return 0
+        const [num, den] = str.split('/').map(Number)
+        if (!den || den === 0) return 0
+        return num / den
       }
+      const avgFps = tryParseFps(videoStream.avg_frame_rate)
+      const rFps = tryParseFps(videoStream.r_frame_rate)
+      // avg_frame_rate reflects actual content fps; r_frame_rate is often the
+      // timebase (1000/1 for MediaRecorder WebM) and must not be used as fps.
+      if (avgFps >= 1 && avgFps <= 120) fps = Math.round(avgFps)
+      else if (rFps >= 1 && rFps <= 120) fps = Math.round(rFps)
 
       // Fall back to stream-level duration when format-level duration is absent (common for MediaRecorder WebM)
       const duration = parseFloat(format.duration) || parseFloat(videoStream.duration) || 0
@@ -96,7 +104,7 @@ export async function extractThumbnail(filePath) {
   return `data:image/jpeg;base64,${data.toString('base64')}`
 }
 
-export function convertToMp4(inputPath, outputPath, onProgress) {
+export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
   return new Promise(async (resolve, reject) => {
     try {
       await fs.access(inputPath)
@@ -122,7 +130,11 @@ export function convertToMp4(inputPath, outputPath, onProgress) {
       .audioCodec('aac')
       .audioBitrate('128k')
       .addOption('-movflags', '+faststart')
-      .output(outputPath)
+
+    // Force output fps to prevent WebM 1000/1 timebase causing massive frame duplication
+    if (fps && fps >= 1 && fps <= 120) proc.addOption('-r', String(fps))
+
+    proc.output(outputPath)
       .on('start', (cmd) => console.log('[ffmpeg] convert command:', cmd))
       .on('stderr', (line) => console.log('[ffmpeg]', line))
       .on('progress', (progress) => {

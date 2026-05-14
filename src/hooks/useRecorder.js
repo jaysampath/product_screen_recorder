@@ -27,6 +27,7 @@ export function useRecorder() {
   const stopResolveRef = useRef(null)
   const stopRejectRef = useRef(null)
   const recordingStartTimeRef = useRef(null)
+  const recordingStopTimeRef = useRef(null)
   const processingWebmPathRef = useRef(null)
 
   const sendTick = useCallback((tickStatus) => {
@@ -162,6 +163,7 @@ export function useRecorder() {
             const procResult = await window.electron.invoke('start-processing', {
               webmPath: saveResult.filePath,
               recordingStartTime: recordingStartTimeRef.current,
+              recordingStopTime: recordingStopTimeRef.current,
               screenWidth: window.screen.width,
               screenHeight: window.screen.height
             })
@@ -263,6 +265,7 @@ export function useRecorder() {
       stopRejectRef.current = reject
       clearInterval(timerRef.current)
       timerRef.current = null
+      recordingStopTimeRef.current = Date.now()
       recorder.stop()
     })
   }, [])

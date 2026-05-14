@@ -575,13 +575,14 @@ ipcMain.handle(
 
 ipcMain.handle(
   'start-processing',
-  async (event, { webmPath, recordingStartTime, screenWidth, screenHeight }) => {
+  async (event, { webmPath, recordingStartTime, recordingStopTime, screenWidth, screenHeight }) => {
     console.log('[main] start-processing invoked:', { webmPath, screenWidth, screenHeight })
     const settings = store.store
     console.log('[main] settings.recording.autoZoom:', settings?.recording?.autoZoom)
     return processRecording({
       webmPath,
       recordingStartTime,
+      recordingStopTime,
       screenWidth,
       screenHeight,
       settings,
