@@ -11,11 +11,19 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha.toFixed(3)})`
 }
 
+const SIZE_SCALE = { small: 0.6, medium: 1.0, large: 1.5 }
+
 export default function ClickCanvas() {
   const canvasRef = useRef(null)
   const ripplesRef = useRef([])
   const cursorRef = useRef({ x: -200, y: -200, visible: false })
   const rafRef = useRef(null)
+  const settingsRef = useRef({
+    showClickRipple: true,
+    clickRippleColor: '#f97316',
+    rippleSize: 'medium',
+    showCursorHighlight: true
+  })
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -23,11 +31,13 @@ export default function ClickCanvas() {
     const ctx = canvas.getContext('2d')
     const dpr = window.devicePixelRatio || 1
     const now = performance.now()
+    const s = settingsRef.current
+    const scale = SIZE_SCALE[s.rippleSize] ?? 1.0
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Cursor glow — soft ring that follows the cursor during recording
-    if (cursorRef.current.visible) {
+    // Cursor highlight — soft ring that follows the cursor during recording
+    if (s.showCursorHighlight && cursorRef.current.visible) {
       const cx = cursorRef.current.x * dpr
       const cy = cursorRef.current.y * dpr
       ctx.beginPath()
@@ -42,39 +52,41 @@ export default function ClickCanvas() {
       (r) => now - r.startTime < RIPPLE_LIFETIME
     )
 
-    for (const ripple of ripplesRef.current) {
-      const elapsed = now - ripple.startTime
-      const px = ripple.x * dpr
-      const py = ripple.y * dpr
-      const color = ripple.button === 'right' ? '#a855f7' : '#f97316'
+    if (s.showClickRipple) {
+      for (const ripple of ripplesRef.current) {
+        const elapsed = now - ripple.startTime
+        const px = ripple.x * dpr
+        const py = ripple.y * dpr
+        const color = ripple.button === 'right' ? '#a855f7' : s.clickRippleColor
 
-      // 1. Center dot — radius 5, solid fill, fades out over 300ms
-      if (elapsed < 300) {
-        const alpha = 1 - elapsed / 300
-        ctx.beginPath()
-        ctx.arc(px, py, 5 * dpr, 0, Math.PI * 2)
-        ctx.fillStyle = hexToRgba(color, alpha)
-        ctx.fill()
-      }
+        // 1. Center dot — radius 5, solid fill, fades out over 300ms
+        if (elapsed < 300) {
+          const alpha = 1 - elapsed / 300
+          ctx.beginPath()
+          ctx.arc(px, py, 5 * scale * dpr, 0, Math.PI * 2)
+          ctx.fillStyle = hexToRgba(color, alpha)
+          ctx.fill()
+        }
 
-      // 2. Primary ripple — radius 8→40, opacity 0.9→0, 600ms, stroke 3px
-      if (elapsed < 600) {
-        const t = elapsed / 600
-        ctx.beginPath()
-        ctx.arc(px, py, (8 + t * 32) * dpr, 0, Math.PI * 2)
-        ctx.strokeStyle = hexToRgba(color, 0.9 * (1 - t))
-        ctx.lineWidth = 3 * dpr
-        ctx.stroke()
-      }
+        // 2. Primary ripple — radius 8→40, opacity 0.9→0, 600ms, stroke 3px
+        if (elapsed < 600) {
+          const t = elapsed / 600
+          ctx.beginPath()
+          ctx.arc(px, py, (8 + t * 32) * scale * dpr, 0, Math.PI * 2)
+          ctx.strokeStyle = hexToRgba(color, 0.9 * (1 - t))
+          ctx.lineWidth = 3 * scale * dpr
+          ctx.stroke()
+        }
 
-      // 3. Secondary ripple — radius 15→65, 30% opacity, 100ms delay, 800ms
-      if (elapsed >= 100 && elapsed < 900) {
-        const t = (elapsed - 100) / 800
-        ctx.beginPath()
-        ctx.arc(px, py, (15 + t * 50) * dpr, 0, Math.PI * 2)
-        ctx.strokeStyle = hexToRgba(color, 0.3 * (1 - t))
-        ctx.lineWidth = 2 * dpr
-        ctx.stroke()
+        // 3. Secondary ripple — radius 15→65, 30% opacity, 100ms delay, 800ms
+        if (elapsed >= 100 && elapsed < 900) {
+          const t = (elapsed - 100) / 800
+          ctx.beginPath()
+          ctx.arc(px, py, (15 + t * 50) * scale * dpr, 0, Math.PI * 2)
+          ctx.strokeStyle = hexToRgba(color, 0.3 * (1 - t))
+          ctx.lineWidth = 2 * scale * dpr
+          ctx.stroke()
+        }
       }
     }
 
@@ -119,10 +131,18 @@ export default function ClickCanvas() {
       ensureAnimating()
     }
 
-    let clickListener, cursorListener
+    let clickListener, cursorListener, settingsListener
     if (window.overlay) {
       clickListener = window.overlay.on('click', handleClick)
       cursorListener = window.overlay.on('cursor', handleCursor)
+      settingsListener = window.overlay.on('overlay-settings', (cfg) => {
+        settingsRef.current = {
+          showClickRipple: cfg.showClickRipple ?? true,
+          clickRippleColor: cfg.clickRippleColor ?? '#f97316',
+          rippleSize: cfg.rippleSize ?? 'medium',
+          showCursorHighlight: cfg.showCursorHighlight ?? true
+        }
+      })
     }
 
     return () => {
@@ -134,6 +154,7 @@ export default function ClickCanvas() {
       if (window.overlay) {
         if (clickListener) window.overlay.off('click', clickListener)
         if (cursorListener) window.overlay.off('cursor', cursorListener)
+        if (settingsListener) window.overlay.off('overlay-settings', settingsListener)
       }
       cursorRef.current = { x: -200, y: -200, visible: false }
     }

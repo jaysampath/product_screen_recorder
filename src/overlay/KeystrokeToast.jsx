@@ -6,11 +6,21 @@ export default function KeystrokeToast() {
   const [repeatCount, setRepeatCount] = useState(1)
   const fadeTimer = useRef(null)
   const lastDisplay = useRef('')
+  const enabledRef = useRef(true)
 
   useEffect(() => {
     if (!window.overlay) return
 
+    const settingsListener = window.overlay.on('overlay-settings', (cfg) => {
+      enabledRef.current = cfg.showKeystrokeOverlay ?? true
+      if (!enabledRef.current) {
+        setVisible(false)
+        lastDisplay.current = ''
+      }
+    })
+
     function handleKeystroke({ keys: k, display: d }) {
+      if (!enabledRef.current) return
       if (d === lastDisplay.current) {
         setRepeatCount((n) => n + 1)
       } else {
@@ -32,6 +42,7 @@ export default function KeystrokeToast() {
 
     return () => {
       if (fadeTimer.current) clearTimeout(fadeTimer.current)
+      window.overlay.off('overlay-settings', settingsListener)
     }
   }, [])
 

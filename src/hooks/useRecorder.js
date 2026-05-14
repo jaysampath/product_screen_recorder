@@ -131,38 +131,48 @@ export function useRecorder() {
         }
 
         recorder.onstop = async () => {
+          console.log('[recorder] onstop fired — stopping overlay and beginning save')
+          window.electron.send('hide-overlay')
           let removeProgressListener = null
           try {
             sendTick('processing')
             setStatus('processing')
+            console.log('[recorder] Building blob from', chunksRef.current.length, 'chunks, total size estimate:', fileSizeRef.current, 'bytes')
             const blob = new Blob(chunksRef.current, { type: mimeType })
+            console.log('[recorder] Blob built, size:', blob.size, 'bytes — converting to ArrayBuffer...')
             const arrayBuffer = await blob.arrayBuffer()
+            console.log('[recorder] ArrayBuffer ready, size:', arrayBuffer.byteLength, '— invoking save-recording IPC')
             const filename = generateFilename()
             const saveResult = await window.electron.invoke('save-recording', {
               buffer: arrayBuffer,
               filename
             })
+            console.log('[recorder] save-recording result:', saveResult)
             if (!saveResult.success) throw new Error(saveResult.error)
 
             processingWebmPathRef.current = saveResult.filePath
             setProcessingProgress({ stage: 0, stageName: 'Starting...', stageProgress: 0, overallPercent: 0 })
 
             removeProgressListener = window.electron.on('processing-progress', (progress) => {
+              console.log('[recorder] processing-progress:', progress)
               setProcessingProgress(progress)
             })
 
+            console.log('[recorder] Invoking start-processing for', saveResult.filePath)
             const procResult = await window.electron.invoke('start-processing', {
               webmPath: saveResult.filePath,
               recordingStartTime: recordingStartTimeRef.current,
               screenWidth: window.screen.width,
               screenHeight: window.screen.height
             })
+            console.log('[recorder] start-processing complete:', procResult)
 
             setProcessingResult(procResult)
             setOutputPath(procResult.mp4Path)
             setStatus('done')
             stopResolveRef.current?.(procResult)
           } catch (err) {
+            console.error('[recorder] onstop error:', err)
             const message = err.message || 'Failed to process recording'
             setError(message)
             setStatus('idle')
@@ -185,6 +195,8 @@ export function useRecorder() {
 
         // collect data every second for live size estimate
         recorder.start(1000)
+        console.log('[recorder] MediaRecorder started, sending show-overlay')
+        window.electron.send('show-overlay')
         setStatus('recording')
         setDuration(0)
         setFileSize(0)
@@ -274,6 +286,8 @@ export function useRecorder() {
   }, [])
 
   const discardRecording = useCallback(() => {
+    console.log('[recorder] discardRecording called')
+    window.electron.send('hide-overlay')
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
       // skip save in onstop

@@ -231,11 +231,14 @@ ipcMain.handle('get-recordings-dir', async () => {
 })
 
 ipcMain.handle('save-recording', async (_event, { buffer, filename }) => {
+  console.log('[main] save-recording invoked, buffer size:', buffer?.byteLength ?? 'unknown', 'filename:', filename)
   try {
     const dir = getRecordingsDir()
     await fs.mkdir(dir, { recursive: true })
     const filePath = join(dir, filename)
+    console.log('[main] writing file to:', filePath)
     await fs.writeFile(filePath, Buffer.from(buffer))
+    console.log('[main] file written successfully:', filePath)
     return { success: true, filePath }
   } catch (err) {
     const message =
@@ -273,13 +276,22 @@ ipcMain.handle('list-recordings', async () => {
   try {
     await fs.mkdir(dir, { recursive: true })
     const files = await fs.readdir(dir)
-    const webmFiles = files.filter((f) => f.endsWith('.webm'))
+
+    // Prefer the processed .mp4 when both exist; fall back to .webm-only
+    const mp4Bases = new Set(
+      files.filter((f) => f.endsWith('.mp4')).map((f) => f.replace(/\.mp4$/, ''))
+    )
+    const recordingFiles = [
+      ...files.filter((f) => f.endsWith('.mp4')),
+      ...files.filter((f) => f.endsWith('.webm') && !mp4Bases.has(f.replace(/\.webm$/, '')))
+    ]
+
     const recordings = await Promise.all(
-      webmFiles.map(async (filename) => {
+      recordingFiles.map(async (filename) => {
         const filePath = join(dir, filename)
         const stat = await fs.stat(filePath)
         return {
-          id: filename.replace(/\.webm$/, ''),
+          id: filename.replace(/\.(mp4|webm)$/, ''),
           filename,
           filePath,
           size: stat.size,
@@ -317,8 +329,10 @@ ipcMain.handle('get-file-url', async (_event, { filePath }) => {
 ipcMain.handle('rename-recording', async (_event, { filePath, newName }) => {
   try {
     const dir = dirname(filePath)
+    const ext = filePath.endsWith('.mp4') ? '.mp4' : '.webm'
     const sanitized = newName.replace(/[<>:"/\\|?*]/g, '_').trim()
-    const newFilename = sanitized.endsWith('.webm') ? sanitized : sanitized + '.webm'
+    const base = sanitized.replace(/\.(mp4|webm)$/i, '')
+    const newFilename = base + ext
     const newPath = join(dir, newFilename)
     await fs.rename(filePath, newPath)
     return { success: true, newPath, newFilename }
@@ -330,14 +344,22 @@ ipcMain.handle('rename-recording', async (_event, { filePath, newName }) => {
 // ── IPC: overlay ─────────────────────────────────────────────────────────────
 
 ipcMain.on('show-overlay', () => {
+  console.log('[main] show-overlay received — showing overlay and starting click tracking')
   isRecording = true
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.show()
     startClickTracking(overlayWindow)
+    // Send current recording settings so the overlay can respect feature toggles/colors
+    const recordingSettings = store.get('recording')
+    console.log('[main] sending overlay-settings:', recordingSettings)
+    overlayWindow.webContents.send('overlay-settings', recordingSettings)
+  } else {
+    console.warn('[main] show-overlay: overlayWindow is missing or destroyed')
   }
 })
 
 ipcMain.on('hide-overlay', () => {
+  console.log('[main] hide-overlay received')
   isRecording = false
   heldModifiers.clear()
   stopClickTracking()
@@ -554,7 +576,9 @@ ipcMain.handle(
 ipcMain.handle(
   'start-processing',
   async (event, { webmPath, recordingStartTime, screenWidth, screenHeight }) => {
+    console.log('[main] start-processing invoked:', { webmPath, screenWidth, screenHeight })
     const settings = store.store
+    console.log('[main] settings.recording.autoZoom:', settings?.recording?.autoZoom)
     return processRecording({
       webmPath,
       recordingStartTime,

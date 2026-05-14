@@ -98,8 +98,10 @@ export async function processZoom(
 ) {
   const { width: vw, height: vh, fps, duration } = videoMetadata
   const { width: sw, height: sh } = screenDimensions
+  console.log('[zoom] processZoom called — clickEvents:', clickEvents.length, '| duration:', duration?.toFixed(1) + 's')
 
   if (duration < 1 || clickEvents.length === 0) {
+    console.log('[zoom] Skipping — duration too short or no click events')
     return { success: true, outputPath: inputPath, zoomCount: 0 }
   }
 
@@ -136,16 +138,22 @@ export async function processZoom(
   }
 
   const zoomWindows = mergeOverlappingZooms(normalized, fps, timing)
+  console.log('[zoom] zoom windows after merge:', zoomWindows.length)
   if (zoomWindows.length === 0) {
+    console.log('[zoom] No valid zoom windows — skipping zoom step')
     return { success: true, outputPath: inputPath, zoomCount: 0 }
   }
 
   const zoomFilter = buildZoompanFilter(zoomWindows, vw, vh, fps)
+  console.log('[zoom] Starting FFmpeg zoompan — this is slow for long recordings (frame-by-frame)')
+  console.log('[zoom] Input:', inputPath, '| Output:', outputPath)
+  console.log('[zoom] Duration:', duration.toFixed(1) + 's | FPS:', fps, '| Resolution:', vw + 'x' + vh)
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
 
   return new Promise((resolve, reject) => {
     fluentFfmpeg(inputPath)
+      .addOption('-y')
       .videoFilter(zoomFilter)
       .videoCodec('libx264')
       .addOption('-crf', '23')
@@ -153,7 +161,10 @@ export async function processZoom(
       .audioCodec('copy')
       .addOption('-movflags', '+faststart')
       .output(outputPath)
+      .on('start', (cmd) => console.log('[zoom] FFmpeg command:', cmd))
+      .on('stderr', (line) => console.log('[zoom]', line))
       .on('progress', (p) => {
+        console.log('[zoom] progress:', p.percent?.toFixed(1) + '%', p.timemark)
         if (onProgress) {
           onProgress({
             percent: Math.min(100, Math.round(p.percent || 0)),
@@ -161,8 +172,14 @@ export async function processZoom(
           })
         }
       })
-      .on('end', () => resolve({ success: true, outputPath, zoomCount: zoomWindows.length }))
-      .on('error', (err) => reject(new Error(`Zoom processing failed: ${err.message}`)))
+      .on('end', () => {
+        console.log('[zoom] Zoompan complete:', outputPath)
+        resolve({ success: true, outputPath, zoomCount: zoomWindows.length })
+      })
+      .on('error', (err) => {
+        console.error('[zoom] Zoompan error:', err.message)
+        reject(new Error(`Zoom processing failed: ${err.message}`))
+      })
       .run()
   })
 }

@@ -69,10 +69,11 @@ export default function App() {
     [startRecording]
   )
 
-  // After a recording saves: switch to library (Library auto-refreshes via processing-complete event)
+  // After a recording saves: switch to library and trigger its refresh
   useEffect(() => {
     if (status === 'done' && outputPath) {
       setActiveNav('library')
+      window.dispatchEvent(new Event('processing-complete'))
     }
   }, [status, outputPath])
 

@@ -113,7 +113,9 @@ export function convertToMp4(inputPath, outputPath, onProgress) {
       return
     }
 
+    console.log('[ffmpeg] convertToMp4 started:', inputPath, '->', outputPath)
     const proc = fluentFfmpeg(inputPath)
+      .addOption('-y')
       .videoCodec('libx264')
       .addOption('-crf', '23')
       .addOption('-preset', 'fast')
@@ -121,7 +123,10 @@ export function convertToMp4(inputPath, outputPath, onProgress) {
       .audioBitrate('128k')
       .addOption('-movflags', '+faststart')
       .output(outputPath)
+      .on('start', (cmd) => console.log('[ffmpeg] convert command:', cmd))
+      .on('stderr', (line) => console.log('[ffmpeg]', line))
       .on('progress', (progress) => {
+        console.log('[ffmpeg] convert progress:', progress.percent?.toFixed(1) + '%', progress.timemark)
         if (onProgress) {
           onProgress({
             percent: Math.min(100, Math.round(progress.percent || 0)),
@@ -130,10 +135,12 @@ export function convertToMp4(inputPath, outputPath, onProgress) {
         }
       })
       .on('end', () => {
+        console.log('[ffmpeg] convertToMp4 complete:', outputPath)
         activeProcesses.delete(outputPath)
         resolve({ success: true, outputPath, duration: null })
       })
       .on('error', (err) => {
+        console.error('[ffmpeg] convertToMp4 error:', err.message)
         activeProcesses.delete(outputPath)
         if (err.message?.includes('SIGKILL') || err.message?.includes('killed')) {
           resolve({ success: false, cancelled: true })
