@@ -167,9 +167,9 @@ function stopZoomCapture() {
 
 function applyZoomToggle(active) {
   isZoomActive = active
+  const level = store.get('recording.liveZoomLevel', 2.5)
   if (active) {
     startZoomCapture()
-    const level = store.get('recording.liveZoomLevel', 2.5)
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('zoom-level-changed', { level })
     }
@@ -180,7 +180,7 @@ function applyZoomToggle(active) {
     overlayWindow.webContents.send('zoom-toggle', { active, x: currentMouseX, y: currentMouseY })
   }
   if (controlBarWindow && !controlBarWindow.isDestroyed()) {
-    controlBarWindow.webContents.send('zoom-state', { active })
+    controlBarWindow.webContents.send('zoom-state', { active, level })
   }
 }
 
