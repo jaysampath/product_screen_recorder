@@ -472,10 +472,10 @@ uIOhook.on('keydown', (e) => {
     return
   }
 
-  // Z key toggles zoom lens (no modifiers, recording only)
-  if (keycode === UiohookKey.Z && !e.ctrlKey && !e.metaKey && !e.altKey && heldModifiers.size === 0) {
+  // Alt+Z (Option+Z on Mac) toggles zoom lens, recording only
+  if (keycode === UiohookKey.Z && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     applyZoomToggle(!isZoomActive)
-    const label = `Z — Zoom ${isZoomActive ? 'On' : 'Off'}`
+    const label = `Alt+Z — Zoom ${isZoomActive ? 'On' : 'Off'}`
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('keystroke', { keys: [label], display: label, timestamp: Date.now() })
     }
