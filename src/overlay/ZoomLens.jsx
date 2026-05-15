@@ -15,8 +15,8 @@ export default function ZoomLens() {
       return
     }
 
-    state.current.sw = window.screen.width
-    state.current.sh = window.screen.height
+    state.current.sw = window.innerWidth
+    state.current.sh = window.innerHeight
 
     // Overlay window doesn't have window.electron
     // Zoom level is sent from main process via zoom-toggle event
@@ -125,7 +125,7 @@ export default function ZoomLens() {
       ctx.strokeStyle = '#f97316'
       ctx.lineWidth = 2.5
       ctx.beginPath()
-      ctx.arc(x, y, 16, 0, Math.PI * 2)
+      ctx.arc(x, y, 15, 0, Math.PI * 2)
       ctx.stroke()
       ctx.restore()
     }
@@ -143,8 +143,8 @@ export default function ZoomLens() {
   return (
     <canvas
       ref={canvasRef}
-      width={window.screen.width}
-      height={window.screen.height}
+      width={window.innerWidth}
+      height={window.innerHeight}
       style={{
         position: 'fixed',
         inset: 0,

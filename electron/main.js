@@ -451,6 +451,16 @@ const MODIFIER_ORDER = [
   [UiohookKey.Meta, UiohookKey.MetaRight]
 ]
 
+function normalizeCoords(physicalX, physicalY) {
+  const display = screen.getDisplayNearestPoint({ x: physicalX, y: physicalY })
+  const scaleFactor = display.scaleFactor
+  return {
+    x: Math.round(physicalX / scaleFactor),
+    y: Math.round(physicalY / scaleFactor),
+    scaleFactor
+  }
+}
+
 uIOhook.on('keydown', (e) => {
   console.log('[uiohook] keydown:', e.keycode, '| isRecording:', isRecording)
   if (!isRecording) return
@@ -506,16 +516,24 @@ uIOhook.on('keyup', (e) => {
 })
 
 uIOhook.on('mousedown', (e) => {
-  console.log('[uiohook] mousedown at:', e.x, e.y,
-    '| isRecording:', isRecording,
-    '| overlayWindow exists:', !!overlayWindow)
+  const { x, y } = normalizeCoords(e.x, e.y)
+  if (isRecording && overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('click', { x, y, button: e.button, timestamp: Date.now() })
+    clickStore.add({ type: 'click', x, y, button: e.button, timestamp: Date.now() })
+  }
 })
 
 uIOhook.on('mousemove', (e) => {
-  currentMouseX = e.x
-  currentMouseY = e.y
-  if (isZoomActive && overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('zoom-move', { x: e.x, y: e.y })
+  const { x, y } = normalizeCoords(e.x, e.y)
+  currentMouseX = x
+  currentMouseY = y
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    if (isRecording) {
+      overlayWindow.webContents.send('cursor-move', { x, y })
+    }
+    if (isZoomActive) {
+      overlayWindow.webContents.send('zoom-move', { x, y })
+    }
   }
 })
 
