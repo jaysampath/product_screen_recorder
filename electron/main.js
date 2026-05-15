@@ -169,6 +169,10 @@ function applyZoomToggle(active) {
   isZoomActive = active
   if (active) {
     startZoomCapture()
+    const level = store.get('recording.liveZoomLevel', 2.5)
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('zoom-level-changed', { level })
+    }
   } else {
     stopZoomCapture()
   }
