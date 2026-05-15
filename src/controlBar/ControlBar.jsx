@@ -32,15 +32,18 @@ export default function ControlBar() {
   const [tick, setTick] = useState({ duration: 0, fileSize: 0, status: 'recording' })
   const [collapsed, setCollapsed] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
+  const [zoomActive, setZoomActive] = useState(false)
   const stopHoverRef = useRef(false)
   const discardTimerRef = useRef(null)
 
   useEffect(() => {
     const tickL = window.controlBar.on('recording-tick', (data) => setTick(data))
     const discardL = window.controlBar.on('show-discard-confirm', () => triggerDiscard())
+    const zoomL = window.controlBar.on('zoom-state', ({ active }) => setZoomActive(active))
     return () => {
       window.controlBar.off('recording-tick', tickL)
       window.controlBar.off('show-discard-confirm', discardL)
+      window.controlBar.off('zoom-state', zoomL)
     }
   }, [])
 
@@ -187,6 +190,16 @@ export default function ControlBar() {
             {isPaused ? <PlayIcon /> : <PauseIcon />}
           </button>
 
+          {/* Zoom toggle */}
+          <button
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors flex-shrink-0"
+            style={zoomActive ? { color: '#f97316', background: 'rgba(249,115,22,0.15)', boxShadow: '0 0 6px rgba(249,115,22,0.4)' } : { color: 'rgba(156,163,175,1)' }}
+            onClick={() => send('toggle-zoom')}
+            title="Zoom In (Z)"
+          >
+            <ZoomIcon />
+          </button>
+
           {/* Stop */}
           <StopButton onClick={() => send('control-stop')} stopHoverRef={stopHoverRef} />
 
@@ -282,6 +295,16 @@ function CloseIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function ZoomIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+      <circle cx="11" cy="11" r="7" />
+      <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+      <path strokeLinecap="round" d="M11 8v6M8 11h6" />
     </svg>
   )
 }

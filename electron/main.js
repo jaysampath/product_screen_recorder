@@ -72,6 +72,10 @@ let mainWindow = null
 let overlayWindow = null
 let controlBarWindow = null
 let isRecording = false
+let isZoomActive = false
+let currentMouseX = 0
+let currentMouseY = 0
+let zoomCaptureInterval = null
 const heldModifiers = new Set()
 
 // ── Position persistence (no electron-store needed) ─────────────────────────
@@ -178,6 +182,49 @@ function createControlBarWindow(savedPos) {
     controlBarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/controlBar/index.html')
   } else {
     controlBarWindow.loadFile(join(__dirname, '../renderer/controlBar/index.html'))
+  }
+}
+
+// ── Zoom lens helpers ─────────────────────────────────────────────────────────
+
+function startZoomCapture() {
+  stopZoomCapture()
+  const { width, height } = screen.getPrimaryDisplay().bounds
+  zoomCaptureInterval = setInterval(async () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width, height }
+      })
+      if (sources.length > 0) {
+        const jpegBuf = sources[0].thumbnail.toJPEG(72)
+        const dataUrl = 'data:image/jpeg;base64,' + jpegBuf.toString('base64')
+        overlayWindow.webContents.send('zoom-frame', { dataUrl })
+      }
+    } catch {}
+  }, 100)
+}
+
+function stopZoomCapture() {
+  if (zoomCaptureInterval) {
+    clearInterval(zoomCaptureInterval)
+    zoomCaptureInterval = null
+  }
+}
+
+function applyZoomToggle(active) {
+  isZoomActive = active
+  if (active) {
+    startZoomCapture()
+  } else {
+    stopZoomCapture()
+  }
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('zoom-toggle', { active, x: currentMouseX, y: currentMouseY })
+  }
+  if (controlBarWindow && !controlBarWindow.isDestroyed()) {
+    controlBarWindow.webContents.send('zoom-state', { active })
   }
 }
 
@@ -363,6 +410,13 @@ ipcMain.on('hide-overlay', () => {
   isRecording = false
   heldModifiers.clear()
   stopClickTracking()
+  if (isZoomActive) {
+    isZoomActive = false
+    stopZoomCapture()
+    if (controlBarWindow && !controlBarWindow.isDestroyed()) {
+      controlBarWindow.webContents.send('zoom-state', { active: false })
+    }
+  }
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide()
 })
 
@@ -451,6 +505,16 @@ uIOhook.on('keydown', (e) => {
     return
   }
 
+  // Z key toggles zoom lens (no modifiers, recording only)
+  if (keycode === UiohookKey.Z && !e.ctrlKey && !e.metaKey && !e.altKey && heldModifiers.size === 0) {
+    applyZoomToggle(!isZoomActive)
+    const label = `Z — Zoom ${isZoomActive ? 'On' : 'Off'}`
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('keystroke', { keys: [label], display: label, timestamp: Date.now() })
+    }
+    return
+  }
+
   const specialName = SPECIAL_KEY_MAP[keycode]
   const hasModifiers = heldModifiers.size > 0
 
@@ -481,6 +545,14 @@ uIOhook.on('keydown', (e) => {
 uIOhook.on('keyup', (e) => {
   if (MODIFIER_CODES.has(e.keycode)) {
     heldModifiers.delete(e.keycode)
+  }
+})
+
+uIOhook.on('mousemove', (e) => {
+  currentMouseX = e.x
+  currentMouseY = e.y
+  if (isZoomActive && overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('zoom-move', { x: e.x, y: e.y })
   }
 })
 
@@ -529,6 +601,11 @@ ipcMain.on('control-pause', () => mainWindow?.webContents.send('control-pause'))
 ipcMain.on('control-resume', () => mainWindow?.webContents.send('control-resume'))
 ipcMain.on('control-stop', () => mainWindow?.webContents.send('control-stop'))
 ipcMain.on('control-discard', () => mainWindow?.webContents.send('control-discard'))
+
+ipcMain.on('toggle-zoom', () => {
+  if (!isRecording) return
+  applyZoomToggle(!isZoomActive)
+})
 
 // ── IPC: FFmpeg ───────────────────────────────────────────────────────────────
 
