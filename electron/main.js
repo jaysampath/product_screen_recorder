@@ -132,56 +132,8 @@ function createOverlayWindow() {
     overlayWindow.loadFile(join(__dirname, '../renderer/overlay/index.html'))
   }
 
-  overlayWindow.on('closed', () => {
-    overlayWindow = null
-  })
-}
-
-function createControlBarWindow(savedPos) {
-  const { workAreaSize } = screen.getPrimaryDisplay()
-  const winWidth = 280
-  const winHeight = 64
-  const x = savedPos?.x ?? Math.round((workAreaSize.width - winWidth) / 2)
-  const y = savedPos?.y ?? workAreaSize.height - winHeight - 24
-
-  controlBarWindow = new BrowserWindow({
-    x,
-    y,
-    width: winWidth,
-    height: winHeight,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    movable: true,
-    transparent: true,
-    hasShadow: true,
-    show: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/controlBarPreload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  })
-
-  controlBarWindow.setAlwaysOnTop(true, 'floating')
-  controlBarWindow.setVisibleOnAllWorkspaces(true)
-
-  controlBarWindow.on('moved', async () => {
-    if (controlBarWindow && !controlBarWindow.isDestroyed()) {
-      const [px, py] = controlBarWindow.getPosition()
-      await saveControlBarPosition(px, py)
-    }
-  })
-
-  controlBarWindow.on('closed', () => {
-    controlBarWindow = null
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    controlBarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/controlBar/index.html')
-  } else {
-    controlBarWindow.loadFile(join(__dirname, '../renderer/controlBar/index.html'))
+  if (!app.isPackaged) {
+    overlayWindow.webContents.openDevTools({ mode: 'detach' })
   }
 }
 
@@ -496,6 +448,7 @@ const MODIFIER_ORDER = [
 ]
 
 uIOhook.on('keydown', (e) => {
+  console.log('[uiohook] keydown:', e.keycode, '| isRecording:', isRecording)
   if (!isRecording) return
 
   const { keycode } = e
@@ -548,6 +501,12 @@ uIOhook.on('keyup', (e) => {
   }
 })
 
+uIOhook.on('mousedown', (e) => {
+  console.log('[uiohook] mousedown at:', e.x, e.y,
+    '| isRecording:', isRecording,
+    '| overlayWindow exists:', !!overlayWindow)
+})
+
 uIOhook.on('mousemove', (e) => {
   currentMouseX = e.x
   currentMouseY = e.y
@@ -555,6 +514,8 @@ uIOhook.on('mousemove', (e) => {
     overlayWindow.webContents.send('zoom-move', { x: e.x, y: e.y })
   }
 })
+
+uIOhook.start()
 
 // ── IPC: control bar ─────────────────────────────────────────────────────────
 
@@ -745,6 +706,60 @@ ipcMain.handle('get-primary-screen-source', async () => {
     thumbnail: src.thumbnail.toDataURL()
   }
 })
+
+// ── Window factory: control bar ───────────────────────────────────────────────
+
+function createControlBarWindow(savedPos) {
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
+  const winWidth = 280
+  const winHeight = 64
+  const x = savedPos ? savedPos.x : Math.round((sw - winWidth) / 2)
+  const y = savedPos ? savedPos.y : sh - winHeight - 40
+
+  controlBarWindow = new BrowserWindow({
+    width: winWidth,
+    height: winHeight,
+    x,
+    y,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/controlBarPreload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  controlBarWindow.setAlwaysOnTop(true, 'screen-saver')
+  controlBarWindow.setVisibleOnAllWorkspaces(true)
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    controlBarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/controlBar/index.html')
+  } else {
+    controlBarWindow.loadFile(join(__dirname, '../renderer/controlBar/index.html'))
+  }
+
+  if (!app.isPackaged) {
+    controlBarWindow.webContents.openDevTools({ mode: 'detach' })
+  }
+
+  controlBarWindow.on('moved', async () => {
+    if (controlBarWindow && !controlBarWindow.isDestroyed()) {
+      const [px, py] = controlBarWindow.getPosition()
+      await saveControlBarPosition(px, py)
+    }
+  })
+
+  controlBarWindow.on('closed', () => {
+    controlBarWindow = null
+  })
+
+  return controlBarWindow
+}
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 

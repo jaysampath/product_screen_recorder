@@ -2,19 +2,30 @@ import { useEffect, useRef, useState } from 'react'
 
 const LENS_W = 280
 const LENS_H = 200
-const ZOOM = 2.5
-const SRC_W = LENS_W / ZOOM  // ~112px of screen space shown in lens
-const SRC_H = LENS_H / ZOOM  // ~80px of screen space shown in lens
 
 export default function ZoomLens() {
   const canvasRef = useRef(null)
-  const state = useRef({ active: false, x: 0, y: 0, img: null, sw: 1920, sh: 1080 })
+  const state = useRef({ active: false, x: 0, y: 0, img: null, sw: 1920, sh: 1080, zoom: 2.5 })
   const [visible, setVisible] = useState(false)
   const rafRef = useRef(null)
 
   useEffect(() => {
+    if (!window.overlay) {
+      console.error('[ZoomLens] window.overlay not available')
+      return
+    }
+
     state.current.sw = window.screen.width
     state.current.sh = window.screen.height
+
+    // Overlay window doesn't have window.electron
+    // Zoom level is sent from main process via zoom-toggle event
+    // Use 2.5 as default, updated when zoom-toggle fires
+    state.current.zoom = 2.5
+
+    const onZoomLevel = window.overlay.on('zoom-level-changed', ({ level }) => {
+      state.current.zoom = level
+    })
 
     const onToggle = window.overlay.on('zoom-toggle', ({ active, x, y }) => {
       state.current.active = active
@@ -46,12 +57,15 @@ export default function ZoomLens() {
       const { bx, by } = lensPosition(x, y, sw, sh)
 
       // Compute source crop in thumbnail image coordinates
+      const zoom = state.current.zoom
+      const srcW = LENS_W / zoom
+      const srcH = LENS_H / zoom
       const ratioX = img.naturalWidth / sw
       const ratioY = img.naturalHeight / sh
-      const sx = Math.max(0, (x - SRC_W / 2) * ratioX)
-      const sy = Math.max(0, (y - SRC_H / 2) * ratioY)
-      const sdw = SRC_W * ratioX
-      const sdh = SRC_H * ratioY
+      const sx = Math.max(0, (x - srcW / 2) * ratioX)
+      const sy = Math.max(0, (y - srcH / 2) * ratioY)
+      const sdw = srcW * ratioX
+      const sdh = srcH * ratioY
 
       // Backdrop shadow
       ctx.save()
@@ -90,18 +104,20 @@ export default function ZoomLens() {
       ctx.stroke()
       ctx.restore()
 
-      // 2.5× badge
-      const badgeX = bx + LENS_W - 42
+      // zoom level badge
+      const badgeText = `${zoom}×`
+      const badgeW = 40
+      const badgeX = bx + LENS_W - badgeW - 4
       const badgeY = by + 8
       ctx.save()
       ctx.fillStyle = 'rgba(0,0,0,0.72)'
-      rrect(ctx, badgeX, badgeY, 36, 18, 9)
+      rrect(ctx, badgeX, badgeY, badgeW, 18, 9)
       ctx.fill()
       ctx.fillStyle = '#fff'
       ctx.font = 'bold 10px ui-sans-serif, system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('2.5×', badgeX + 18, badgeY + 9)
+      ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 9)
       ctx.restore()
 
       // Orange indicator ring around actual cursor position
@@ -120,6 +136,7 @@ export default function ZoomLens() {
       window.overlay.off('zoom-toggle', onToggle)
       window.overlay.off('zoom-move', onMove)
       window.overlay.off('zoom-frame', onFrame)
+      window.overlay.off('zoom-level-changed', onZoomLevel)
     }
   }, [])
 

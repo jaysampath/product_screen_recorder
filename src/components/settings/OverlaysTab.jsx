@@ -281,6 +281,20 @@ export default function OverlaysTab({ settings, setSetting }) {
           </div>
         )}
       </div>
+
+      {/* Live Zoom Level */}
+      <div>
+        <div className="mb-3">
+          <div className="text-sm font-medium text-white">Live Zoom Level <span className="text-xs text-gray-500 font-normal">(Z key)</span></div>
+          <div className="text-xs text-gray-500 mt-0.5">Magnification of the zoom lens overlay</div>
+        </div>
+        <Slider
+          min={1.5} max={5.0} step={0.5}
+          value={recording.liveZoomLevel ?? 2.5}
+          onChange={v => setSetting('recording.liveZoomLevel', v)}
+          format={v => `${v}x`}
+        />
+      </div>
     </div>
   )
 }

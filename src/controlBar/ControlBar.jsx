@@ -33,13 +33,17 @@ export default function ControlBar() {
   const [collapsed, setCollapsed] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
   const [zoomActive, setZoomActive] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(2.5)
   const stopHoverRef = useRef(false)
   const discardTimerRef = useRef(null)
 
   useEffect(() => {
     const tickL = window.controlBar.on('recording-tick', (data) => setTick(data))
     const discardL = window.controlBar.on('show-discard-confirm', () => triggerDiscard())
-    const zoomL = window.controlBar.on('zoom-state', ({ active }) => setZoomActive(active))
+    const zoomL = window.controlBar.on('zoom-state', ({ active, level }) => {
+      setZoomActive(active)
+      if (level != null) setZoomLevel(level)
+    })
     return () => {
       window.controlBar.off('recording-tick', tickL)
       window.controlBar.off('show-discard-confirm', discardL)
@@ -192,12 +196,23 @@ export default function ControlBar() {
 
           {/* Zoom toggle */}
           <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors flex-shrink-0"
-            style={zoomActive ? { color: '#f97316', background: 'rgba(249,115,22,0.15)', boxShadow: '0 0 6px rgba(249,115,22,0.4)' } : { color: 'rgba(156,163,175,1)' }}
+            className={`flex items-center justify-center h-8 rounded-lg transition-colors flex-shrink-0 ${zoomActive ? 'gap-1 px-2' : 'w-8'}`}
+            style={zoomActive
+              ? { color: '#f97316', background: 'rgba(249,115,22,0.15)', boxShadow: '0 0 6px rgba(249,115,22,0.4)' }
+              : { color: 'rgba(156,163,175,1)' }}
             onClick={() => send('toggle-zoom')}
-            title="Zoom In (Z)"
+            onWheel={e => {
+              if (!zoomActive) return
+              e.preventDefault()
+              const delta = e.deltaY < 0 ? 0.5 : -0.5
+              window.controlBar.send('adjust-zoom-level', { delta })
+            }}
+            title="Zoom In (Z) · Scroll to adjust level"
           >
             <ZoomIcon />
+            {zoomActive && (
+              <span className="text-[10px] font-mono font-semibold leading-none">{zoomLevel}x</span>
+            )}
           </button>
 
           {/* Stop */}
