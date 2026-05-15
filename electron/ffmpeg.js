@@ -20,14 +20,54 @@ fluentFfmpeg.setFfprobePath(ffprobeBin)
 // outputPath → fluent-ffmpeg process ref, used for cancellation
 const activeProcesses = new Map()
 
-export async function detectHardwareEncoder() {
+// Cache the result so the probe only runs once per session
+let _cachedEncoder = null
+
+async function probeEncoder(encoder) {
+  const testOutput = path.join(os.tmpdir(), `rqa-enc-probe-${Date.now()}.mp4`)
+  const isHW = encoder !== 'libx264'
   return new Promise((resolve) => {
-    fluentFfmpeg.getAvailableEncoders((err, encoders) => {
-      if (err) return resolve('libx264')
-      // Priority order for Windows
+    fluentFfmpeg()
+      .input('color=black:s=64x64:d=0.1')
+      .inputFormat('lavfi')
+      .videoCodec(encoder)
+      .addOutputOption(isHW ? '-rc:v vbr' : '-crf 51')
+      .addOutputOption(isHW ? '-cq:v 51' : '-preset ultrafast')
+      .addOutputOption('-frames:v 1')
+      .noAudio()
+      .output(testOutput)
+      .on('end', () => { fs.unlink(testOutput).catch(() => {}); resolve(true) })
+      .on('error', () => { fs.unlink(testOutput).catch(() => {}); resolve(false) })
+      .run()
+  })
+}
+
+export async function detectHardwareEncoder() {
+  if (_cachedEncoder !== null) return _cachedEncoder
+
+  return new Promise((resolve) => {
+    fluentFfmpeg.getAvailableEncoders(async (err, encoders) => {
+      if (err) {
+        _cachedEncoder = 'libx264'
+        return resolve('libx264')
+      }
+      // Priority order for Windows — test each before committing
       const hwEncoders = ['h264_nvenc', 'h264_amf', 'h264_qsv']
-      const available = hwEncoders.find(e => encoders[e])
-      resolve(available || 'libx264')
+      const candidates = hwEncoders.filter(e => encoders[e])
+
+      for (const encoder of candidates) {
+        const works = await probeEncoder(encoder)
+        if (works) {
+          console.log('[ffmpeg] Hardware encoder available:', encoder)
+          _cachedEncoder = encoder
+          return resolve(encoder)
+        }
+        console.log('[ffmpeg] Hardware encoder failed probe (driver/API mismatch), skipping:', encoder)
+      }
+
+      console.log('[ffmpeg] No working hardware encoder — falling back to libx264')
+      _cachedEncoder = 'libx264'
+      resolve('libx264')
     })
   })
 }
@@ -139,8 +179,9 @@ export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
     const proc = fluentFfmpeg(inputPath)
       .addOption('-y')
       .videoCodec(encoder)
-      .addOutputOption(isHW ? '-rc:v vbr -cq:v 23' : '-crf 23 -preset ultrafast')
-      .addOutputOption('-movflags +faststart')
+      .addOutputOption(isHW ? '-rc:v vbr' : '-crf 23')
+      .addOutputOption(isHW ? '-cq:v 23' : '-preset ultrafast')
+      .outputOptions('-movflags +faststart')
       .audioCodec('aac')
       .audioBitrate('128k')
 
