@@ -82,6 +82,18 @@ export async function processRecording({
   onProgress({ stage: 2, stageName: stages[2], stageProgress: 100, overallPercent: 95 })
   console.log('[processor] Thumbnail generated, length:', thumbnail?.length)
 
+  // Persist thumbnail as a .jpg sidecar so list-recordings can serve it later
+  if (thumbnail) {
+    const thumbPath = mp4Path.replace(/\.mp4$/, '.jpg')
+    const base64Data = thumbnail.replace(/^data:image\/jpeg;base64,/, '')
+    try {
+      fs.writeFileSync(thumbPath, Buffer.from(base64Data, 'base64'))
+      console.log('[processor] Thumbnail saved to', thumbPath)
+    } catch (e) {
+      console.warn('[processor] Failed to save thumbnail sidecar:', e.message)
+    }
+  }
+
   // Cleanup (95→100%)
   if (!settings?.storage?.keepOriginalWebm) {
     try {

@@ -293,6 +293,12 @@ ipcMain.handle('list-recordings', async () => {
       recordingFiles.map(async (filename) => {
         const filePath = join(dir, filename)
         const stat = await fs.stat(filePath)
+        let thumbnail = null
+        const thumbPath = join(dir, filename.replace(/\.(mp4|webm)$/, '.jpg'))
+        try {
+          const thumbData = await fs.readFile(thumbPath)
+          thumbnail = thumbData.toString('base64')
+        } catch {}
         return {
           id: filename.replace(/\.(mp4|webm)$/, ''),
           filename,
@@ -300,7 +306,7 @@ ipcMain.handle('list-recordings', async () => {
           size: stat.size,
           duration: null,
           createdAt: stat.birthtime,
-          thumbnail: null
+          thumbnail
         }
       })
     )
@@ -314,6 +320,8 @@ ipcMain.handle('list-recordings', async () => {
 ipcMain.handle('delete-recording', async (_event, { filePath }) => {
   try {
     await shell.trashItem(filePath)
+    const thumbPath = filePath.replace(/\.(mp4|webm)$/, '.jpg')
+    try { await shell.trashItem(thumbPath) } catch {}
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
