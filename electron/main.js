@@ -515,13 +515,6 @@ uIOhook.on('keyup', (e) => {
   }
 })
 
-uIOhook.on('mousedown', (e) => {
-  const { x, y } = normalizeCoords(e.x, e.y)
-  if (isRecording && overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('click', { x, y, button: e.button, timestamp: Date.now() })
-    clickStore.add({ type: 'click', x, y, button: e.button, timestamp: Date.now() })
-  }
-})
 
 uIOhook.on('mousemove', (e) => {
   const { x, y } = normalizeCoords(e.x, e.y)

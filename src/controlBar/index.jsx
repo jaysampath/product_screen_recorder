@@ -4,7 +4,5 @@ import ControlBar from './ControlBar'
 import '../index.css'
 
 ReactDOM.createRoot(document.getElementById('control-bar-root')).render(
-  <React.StrictMode>
-    <ControlBar />
-  </React.StrictMode>
+  <ControlBar />
 )

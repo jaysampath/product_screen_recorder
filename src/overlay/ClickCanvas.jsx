@@ -33,6 +33,9 @@ export default function ClickCanvas() {
     const s = settingsRef.current
     const scale = SIZE_SCALE[s.rippleSize] ?? 1.0
 
+    if (ripplesRef.current.length > 0) {
+      console.log('[ClickCanvas] drawing', ripplesRef.current.length, 'ripples at:', ripplesRef.current.map(r => `(${r.x},${r.y})`).join(', '))
+    }
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
 
     // Cursor highlight — soft ring that follows the cursor during recording
@@ -40,9 +43,9 @@ export default function ClickCanvas() {
       const cx = cursorRef.current.x
       const cy = cursorRef.current.y
       ctx.beginPath()
-      ctx.arc(cx, cy, 20, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(255,255,255,0.20)'
-      ctx.lineWidth = 2
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2)
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+      ctx.lineWidth = 1.5
       ctx.stroke()
     }
 
@@ -103,6 +106,8 @@ export default function ClickCanvas() {
   }, [draw])
 
   useEffect(() => {
+    console.log('[ClickCanvas] useEffect running — registering listeners')
+    console.log('[ClickCanvas] window.overlay available:', !!window.overlay)
     const canvas = canvasRef.current
 
     function resize() {
@@ -120,7 +125,7 @@ export default function ClickCanvas() {
     window.addEventListener('resize', resize)
 
     function handleClick(data) {
-      cursorRef.current = { x: data.x, y: data.y, visible: true }
+      console.log('[ClickCanvas] click received:', data.x, data.y, '| button:', data.button, '| ripples before:', ripplesRef.current.length)
       ripplesRef.current.push({
         x: data.x,
         y: data.y,
@@ -131,23 +136,30 @@ export default function ClickCanvas() {
     }
 
     function handleCursor(data) {
+      // Log only every 60th call to avoid spam
+      handleCursor.callCount = (handleCursor.callCount || 0) + 1
+      if (handleCursor.callCount % 60 === 0) {
+        console.log('[ClickCanvas] cursor-move:', data.x, data.y)
+      }
       cursorRef.current = { x: data.x, y: data.y, visible: true }
       ensureAnimating()
     }
 
-    let clickListener, cursorListener, settingsListener
-    if (window.overlay) {
-      clickListener = window.overlay.on('click', handleClick)
-      cursorListener = window.overlay.on('cursor-move', handleCursor)
-      settingsListener = window.overlay.on('overlay-settings', (cfg) => {
-        settingsRef.current = {
-          showClickRipple: cfg.showClickRipple ?? true,
-          clickRippleColor: cfg.clickRippleColor ?? '#f97316',
-          rippleSize: cfg.rippleSize ?? 'medium',
-          showCursorHighlight: cfg.showCursorHighlight ?? true
-        }
-      })
+    function handleSettings(cfg) {
+      settingsRef.current = {
+        showClickRipple: cfg.showClickRipple ?? true,
+        clickRippleColor: cfg.clickRippleColor ?? '#f97316',
+        rippleSize: cfg.rippleSize ?? 'medium',
+        showCursorHighlight: cfg.showCursorHighlight ?? true
+      }
     }
+
+    if (window.overlay) {
+      window.overlay.on('click', handleClick)
+      window.overlay.on('cursor-move', handleCursor)
+      window.overlay.on('overlay-settings', handleSettings)
+    }
+    console.log('[ClickCanvas] listeners registered')
 
     return () => {
       window.removeEventListener('resize', resize)
@@ -156,9 +168,9 @@ export default function ClickCanvas() {
         rafRef.current = null
       }
       if (window.overlay) {
-        if (clickListener) window.overlay.off('click', clickListener)
-        if (cursorListener) window.overlay.off('cursor-move', cursorListener)
-        if (settingsListener) window.overlay.off('overlay-settings', settingsListener)
+        window.overlay.off('click', handleClick)
+        window.overlay.off('cursor-move', handleCursor)
+        window.overlay.off('overlay-settings', handleSettings)
       }
       cursorRef.current = { x: -200, y: -200, visible: false }
     }

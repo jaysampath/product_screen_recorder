@@ -1,5 +1,12 @@
+import { screen } from 'electron'
 import { uIOhook, UiohookKey } from 'uiohook-napi'
 import clickStore from './clickStore.js'
+
+function normalizeCoords(physicalX, physicalY) {
+  const display = screen.getDisplayNearestPoint({ x: physicalX, y: physicalY })
+  const sf = display.scaleFactor
+  return { x: Math.round(physicalX / sf), y: Math.round(physicalY / sf) }
+}
 
 let trackingActive = false
 let lastCursorSend = 0
@@ -109,10 +116,11 @@ export function startClickTracking(overlayWindow) {
   })
 
   uIOhook.on('mousedown', (event) => {
+    const { x, y } = normalizeCoords(event.x, event.y)
     const clickData = {
       type: 'click',
-      x: event.x,
-      y: event.y,
+      x,
+      y,
       button: event.button === 1 ? 'left' : 'right',
       timestamp: Date.now(),
       screenId: 0
