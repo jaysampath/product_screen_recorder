@@ -10,28 +10,40 @@ export function useAuth() {
     setError(null)
     try {
       const { data, error: authError } = await supabase.auth.signUp({ email, password })
-      if (authError) throw authError
+      if (authError) {
+        setError(authError.message)
+        return { success: false }
+      }
 
-      const { user: authUser, session } = data
+      console.log('[auth] signup success, user id:', data.user.id)
 
-      await supabase.from('profiles').insert({
-        id: authUser.id,
-        display_name: displayName,
-        plan: 'free',
-        share_links_used: 0
-      })
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          display_name: displayName || email.split('@')[0],
+          plan: 'free',
+          share_links_used: 0,
+          storage_used_bytes: 0
+        })
 
-      if (session) {
+      if (profileError) {
+        console.error('[auth] profile insert failed:', profileError.message)
+      } else {
+        console.log('[auth] profile created successfully')
+      }
+
+      if (data.session) {
         await window.electron.invoke('save-session', {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
         })
       }
 
       setUser({
-        id: authUser.id,
-        email: authUser.email,
-        display_name: displayName,
+        id: data.user.id,
+        email: data.user.email,
+        display_name: displayName || email.split('@')[0],
         plan: 'free',
         share_links_used: 0
       })
@@ -52,11 +64,19 @@ export function useAuth() {
 
       const { user: authUser, session } = data
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
-        .single()
+        .maybeSingle()
+
+      console.log('[auth] profile fetch:', profile, profileError)
+
+      if (!profile) {
+        setError('Account setup incomplete. Please contact support.')
+        await supabase.auth.signOut()
+        return { success: false }
+      }
 
       await window.electron.invoke('save-session', {
         access_token: session.access_token,
@@ -66,9 +86,9 @@ export function useAuth() {
       setUser({
         id: authUser.id,
         email: authUser.email,
-        display_name: profile?.display_name ?? null,
-        plan: profile?.plan ?? 'free',
-        share_links_used: profile?.share_links_used ?? 0
+        display_name: profile.display_name,
+        plan: profile.plan,
+        share_links_used: profile.share_links_used
       })
 
       return { success: true }
@@ -98,15 +118,23 @@ export function useAuth() {
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
-            .single()
+            .maybeSingle()
+
+          if (!profile) {
+            await window.electron.invoke('clear-session')
+            setUser(null)
+            setIsLoading(false)
+            return
+          }
 
           setUser({
             id: data.user.id,
             email: data.user.email,
-            display_name: profile?.display_name ?? null,
-            plan: profile?.plan ?? 'free',
-            share_links_used: profile?.share_links_used ?? 0
+            display_name: profile.display_name,
+            plan: profile.plan,
+            share_links_used: profile.share_links_used
           })
+          setIsLoading(false)
         }
       }
     } catch {
