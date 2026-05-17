@@ -64,7 +64,7 @@ export default function StepReady({ onComplete }) {
       </div>
 
       <h2 className="text-[28px] font-semibold text-white mb-2 tracking-tight">You're all set!</h2>
-      <p className="text-gray-400 text-[14px] mb-7">RecordQA is ready to capture your workflow</p>
+      <p className="text-gray-400 text-[14px] mb-7">ReplayFlow is ready to capture your workflow</p>
 
       {/* Recordings folder */}
       <div

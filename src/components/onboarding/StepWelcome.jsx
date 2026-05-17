@@ -31,7 +31,7 @@ export default function StepWelcome({ onNext }) {
         </svg>
       </div>
 
-      <h1 className="text-[28px] font-semibold text-white mb-2 tracking-tight">Welcome to RecordQA</h1>
+      <h1 className="text-[28px] font-semibold text-white mb-2 tracking-tight">Welcome to ReplayFlow</h1>
       <p className="text-gray-400 text-[15px] mb-8 leading-relaxed">
         Screen recordings your team will actually act on
       </p>

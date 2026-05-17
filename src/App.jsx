@@ -4,7 +4,11 @@ import Library from './pages/Library'
 import Settings from './pages/Settings'
 import UpdateBanner from './components/UpdateBanner'
 import Onboarding from './pages/Onboarding'
+import Auth from './pages/Auth'
+import UserMenu from './components/UserMenu'
+import UpgradeModal from './components/UpgradeModal'
 import { useRecorder } from './hooks/useRecorder'
+import { useAuth } from './hooks/useAuth'
 
 const NAV_ITEMS = [
   {
@@ -48,6 +52,9 @@ export default function App() {
   const [view, setView] = useState('loading')
   const [activeNav, setActiveNav] = useState('library')
   const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+
+  const { user, isLoading: authLoading, signOut, restoreSession } = useAuth()
 
   const {
     status,
@@ -97,12 +104,15 @@ export default function App() {
     }
   }, [status])
 
-  // Check onboarding completion on first mount
+  // Check onboarding and restore session on first mount
   useEffect(() => {
-    window.electron.invoke('get-onboarding-status').then((completed) => {
+    Promise.all([
+      window.electron.invoke('get-onboarding-status'),
+      restoreSession()
+    ]).then(([completed]) => {
       setView(completed ? 'app' : 'onboarding')
     })
-  }, [])
+  }, [restoreSession])
 
   // Handle control commands forwarded from the control bar window (via main process)
   // statusRef avoids stale closure in the pause-toggle handler
@@ -127,8 +137,16 @@ export default function App() {
     }
   }, [pauseRecording, resumeRecording, stopRecording, discardRecording])
 
-  if (view === 'loading') {
-    return <div style={{ background: '#0f0f0f', width: '100vw', height: '100vh' }} />
+  if (view === 'loading' || authLoading) {
+    return (
+      <div style={{ background: '#0f0f0f', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg style={{ width: 32, height: 32, animation: 'spin 2s linear infinite', color: '#a78bfa' }} fill="none" viewBox="0 0 24 24">
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+          <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+      </div>
+    )
   }
 
   if (view === 'onboarding') {
@@ -140,6 +158,10 @@ export default function App() {
         }}
       />
     )
+  }
+
+  if (view === 'auth') {
+    return <Auth onSuccess={() => setView('app')} />
   }
 
   return (
@@ -160,7 +182,7 @@ export default function App() {
               <circle cx="10" cy="10" r="6" />
             </svg>
           </div>
-          <span className="text-[15px] font-semibold tracking-tight text-white">RecordQA</span>
+          <span className="text-[15px] font-semibold tracking-tight text-white">ReplayFlow</span>
         </div>
 
         <p className="px-2 mb-1.5 text-[10px] font-medium tracking-widest text-gray-600 uppercase">
@@ -211,28 +233,40 @@ export default function App() {
           </div>
         )}
 
-        <div className="mt-auto px-2">
-          <div
-            className="rounded-lg p-3 text-xs text-gray-500"
-            style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.05)'
-            }}
-          >
-            <p className="font-medium text-gray-400 mb-0.5">RecordQA</p>
-            <p>v1.0.0 — ready</p>
+        <div className="mt-auto">
+          <div className="px-2 mb-2">
+            <div
+              className="rounded-lg p-3 text-xs text-gray-500"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+            >
+              <p className="font-medium text-gray-400 mb-0.5">ReplayFlow</p>
+              <p>v1.0.0 — ready</p>
+            </div>
+            <button
+              onClick={() => {
+                window.electron.send('show-overlay')
+                setTimeout(() => {
+                  window.electron.send('overlay-event', { type: 'test-circle' })
+                }, 150)
+              }}
+              className="w-full mt-2 px-3 py-1.5 rounded-md text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors text-left"
+            >
+              Test Overlay
+            </button>
           </div>
-          <button
-            onClick={() => {
-              window.electron.send('show-overlay')
-              setTimeout(() => {
-                window.electron.send('overlay-event', { type: 'test-circle' })
-              }, 150)
+
+          <UserMenu
+            user={user}
+            onSignInClick={() => setView('auth')}
+            onUpgradeClick={() => setShowUpgrade(true)}
+            onSignOut={async () => {
+              await signOut()
+              setActiveNav('library')
             }}
-            className="w-full mt-2 px-3 py-1.5 rounded-md text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors text-left"
-          >
-            Test Overlay
-          </button>
+          />
         </div>
       </aside>
 
@@ -371,6 +405,8 @@ export default function App() {
       )}
 
       <UpdateBanner />
+
+      <UpgradeModal isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} />
 
     </div>
   )

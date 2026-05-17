@@ -23,7 +23,7 @@ export default function AboutTab({ settings, setSetting }) {
           </svg>
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-white">RecordQA</h2>
+          <h2 className="text-xl font-semibold text-white">ReplayFlow</h2>
           <p className="text-sm text-gray-500 mt-0.5">Version {version}</p>
           <p className="text-xs text-gray-600 mt-1">Built for QA teams</p>
         </div>

@@ -5,7 +5,7 @@ function generateFilename() {
   const pad = (n) => String(n).padStart(2, '0')
   const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-  return `recordqa-${date}-${time}.webm`
+  return `replayflow-${date}-${time}.webm`
 }
 
 export function useRecorder() {

@@ -36,3 +36,6 @@ Desktop.ini
 coverage
 
 debug/
+
+.env
+.env.local

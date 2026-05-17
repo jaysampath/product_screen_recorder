@@ -1,5 +1,5 @@
 {
-  "name": "recordqa",
+  "name": "replayflow",
   "version": "1.0.0",
   "description": "Screen recording with QA annotations",
   "main": "out/main/main.js",
@@ -29,6 +29,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
+    "@supabase/supabase-js": "^2.105.4",
     "electron-log": "^5.4.3",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.3",

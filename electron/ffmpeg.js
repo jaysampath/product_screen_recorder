@@ -138,7 +138,7 @@ export async function extractThumbnail(filePath) {
   const metadata = await getVideoMetadata(filePath)
   const seekTime = metadata.duration > 0 && metadata.duration < 2 ? 0.5 : 1
 
-  const tempPath = path.join(os.tmpdir(), `recordqa-thumb-${Date.now()}.jpg`)
+  const tempPath = path.join(os.tmpdir(), `replayflow-thumb-${Date.now()}.jpg`)
 
   await new Promise((resolve, reject) => {
     fluentFfmpeg(filePath)

@@ -191,8 +191,8 @@ protocol.registerSchemesAsPrivileged([
 
 function getRecordingsDir() {
   return process.platform === 'darwin'
-    ? join(os.homedir(), 'Movies', 'RecordQA')
-    : join(os.homedir(), 'Videos', 'RecordQA')
+    ? join(os.homedir(), 'Movies', 'ReplayFlow')
+    : join(os.homedir(), 'Videos', 'ReplayFlow')
 }
 
 function createWindow() {
@@ -695,6 +695,37 @@ ipcMain.handle('complete-onboarding', () => {
   return { success: true }
 })
 
+// ── IPC: auth session ─────────────────────────────────────────────────────────
+
+ipcMain.handle('save-session', (_event, { access_token, refresh_token }) => {
+  store.set('auth.access_token', access_token)
+  store.set('auth.refresh_token', refresh_token)
+  return { success: true }
+})
+
+ipcMain.handle('get-session', () => {
+  return {
+    access_token: store.get('auth.access_token', null),
+    refresh_token: store.get('auth.refresh_token', null)
+  }
+})
+
+ipcMain.handle('clear-session', () => {
+  store.delete('auth.access_token')
+  store.delete('auth.refresh_token')
+  return { success: true }
+})
+
+ipcMain.handle('set-local-only', (_event, value) => {
+  store.set('auth.localOnly', value)
+  return { success: true }
+})
+
+ipcMain.handle('open-external', (_event, url) => {
+  shell.openExternal(url)
+  return { success: true }
+})
+
 ipcMain.handle('check-permissions', async () => {
   if (process.platform !== 'darwin') {
     return { screen: 'granted', mic: 'granted', accessibility: 'granted' }
@@ -812,7 +843,7 @@ app.whenReady().then(async () => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' media: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:*"
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' media: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* https://*.supabase.co wss://*.supabase.co"
         ]
       }
     })

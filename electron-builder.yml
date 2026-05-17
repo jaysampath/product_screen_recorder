@@ -1,6 +1,6 @@
-appId: com.recordqa.app
-productName: RecordQA
-copyright: "Copyright © 2024 RecordQA"
+appId: com.replayflow.app
+productName: ReplayFlow
+copyright: "Copyright © 2024 ReplayFlow"
 
 directories:
   buildResources: resources
@@ -30,11 +30,11 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   extendInfo:
-    NSScreenCaptureUsageDescription: "RecordQA needs screen recording to capture your screen."
-    NSMicrophoneUsageDescription: "RecordQA uses your microphone for voice narration."
+    NSScreenCaptureUsageDescription: "ReplayFlow needs screen recording to capture your screen."
+    NSMicrophoneUsageDescription: "ReplayFlow uses your microphone for voice narration."
 
 dmg:
-  title: "RecordQA ${version}"
+  title: "ReplayFlow ${version}"
   contents:
     - x: 130
       y: 220
@@ -54,10 +54,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: RecordQA
+  shortcutName: ReplayFlow
 
 publish:
   provider: github
   owner: REPLACE_WITH_YOUR_GITHUB_USERNAME
-  repo: recordqa-releases
+  repo: replayflow-releases
   private: false

@@ -128,7 +128,7 @@ export default function StepPermissions({ onNext }) {
         Quick setup needed
       </h2>
       <p className="text-gray-400 text-[14px] mb-7 text-center">
-        RecordQA needs a few permissions to work
+        ReplayFlow needs a few permissions to work
       </p>
 
       <div className="flex flex-col gap-2.5 mb-7">
