@@ -808,6 +808,7 @@ function createControlBarWindow(savedPos) {
 
   controlBarWindow.setAlwaysOnTop(true, 'screen-saver')
   controlBarWindow.setVisibleOnAllWorkspaces(true)
+  controlBarWindow.setContentProtection(true)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     controlBarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/controlBar/index.html')
