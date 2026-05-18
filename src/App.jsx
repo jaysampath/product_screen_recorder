@@ -61,6 +61,7 @@ function AppContent() {
   const [activeNav, setActiveNav] = useState('library')
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [showUpgrade, setShowUpgrade] = useState(false)
+  const [overlayActive, setOverlayActive] = useState(false)
 
   const { user, isLoading: authLoading, signOut } = useAuth()
 
@@ -252,14 +253,20 @@ function AppContent() {
             </div>
             <button
               onClick={() => {
-                window.electron.send('show-overlay')
-                setTimeout(() => {
-                  window.electron.send('overlay-event', { type: 'test-circle' })
-                }, 150)
+                if (overlayActive) {
+                  window.electron.send('hide-overlay')
+                  setOverlayActive(false)
+                } else {
+                  window.electron.send('show-overlay')
+                  setTimeout(() => {
+                    window.electron.send('overlay-event', { type: 'test-circle' })
+                  }, 150)
+                  setOverlayActive(true)
+                }
               }}
               className="w-full mt-2 px-3 py-1.5 rounded-md text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors text-left"
             >
-              Test Overlay
+              {overlayActive ? 'Stop Overlay' : 'Test Overlay'}
             </button>
           </div>
 
