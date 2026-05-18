@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function useAuth() {
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -152,15 +154,19 @@ export function useAuth() {
     return user.share_links_used < 3
   }, [user, isPro])
 
-  return {
-    user,
-    isLoading,
-    error,
-    signUp,
-    signIn,
-    signOut,
-    restoreSession,
-    isPro,
-    canShareLink
-  }
+  useEffect(() => {
+    restoreSession()
+  }, [])
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, error, signUp, signIn, signOut, isPro, canShareLink, setError }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
+  return ctx
 }

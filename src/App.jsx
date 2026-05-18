@@ -8,7 +8,7 @@ import Auth from './pages/Auth'
 import UserMenu from './components/UserMenu'
 import UpgradeModal from './components/UpgradeModal'
 import { useRecorder } from './hooks/useRecorder'
-import { useAuth } from './hooks/useAuth'
+import { AuthProvider, useAuth } from './hooks/useAuth'
 
 const NAV_ITEMS = [
   {
@@ -49,12 +49,20 @@ function formatDuration(secs) {
 }
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  )
+}
+
+function AppContent() {
   const [view, setView] = useState('loading')
   const [activeNav, setActiveNav] = useState('library')
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [showUpgrade, setShowUpgrade] = useState(false)
 
-  const { user, isLoading: authLoading, signOut, restoreSession } = useAuth()
+  const { user, isLoading: authLoading, signOut } = useAuth()
 
   const {
     status,
@@ -104,15 +112,12 @@ export default function App() {
     }
   }, [status])
 
-  // Check onboarding and restore session on first mount
+  // Check onboarding on first mount — session restore runs in AuthProvider
   useEffect(() => {
-    Promise.all([
-      window.electron.invoke('get-onboarding-status'),
-      restoreSession()
-    ]).then(([completed]) => {
+    window.electron.invoke('get-onboarding-status').then((completed) => {
       setView(completed ? 'app' : 'onboarding')
     })
-  }, [restoreSession])
+  }, [])
 
   // Handle control commands forwarded from the control bar window (via main process)
   // statusRef avoids stale closure in the pause-toggle handler
@@ -259,13 +264,9 @@ export default function App() {
           </div>
 
           <UserMenu
-            user={user}
             onSignInClick={() => setView('auth')}
             onUpgradeClick={() => setShowUpgrade(true)}
-            onSignOut={async () => {
-              await signOut()
-              setActiveNav('library')
-            }}
+            onSignOut={() => setActiveNav('library')}
           />
         </div>
       </aside>

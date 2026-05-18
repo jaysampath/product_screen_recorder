@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useAuth } from '../hooks/useAuth'
 
 function UserIcon() {
   return (
@@ -16,7 +17,8 @@ function ChevronDown() {
   )
 }
 
-export default function UserMenu({ user, onSignInClick, onUpgradeClick, onSignOut }) {
+export default function UserMenu({ onSignInClick, onUpgradeClick, onSignOut }) {
+  const { user, signOut } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -96,7 +98,7 @@ export default function UserMenu({ user, onSignInClick, onUpgradeClick, onSignOu
           </button>
           <div style={{ height: 1, background: '#333', margin: '4px 0' }} />
           <button
-            onClick={() => { setDropdownOpen(false); onSignOut() }}
+            onClick={() => { setDropdownOpen(false); signOut().then(() => onSignOut?.()) }}
             style={{
               display: 'block',
               width: '100%',
