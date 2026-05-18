@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useLibrary } from '../hooks/useLibrary';
+import { useAuth } from '../hooks/useAuth';
 import RecordingCard from '../components/RecordingCard';
 import VideoPlayer from '../components/VideoPlayer';
+import UpgradeModal from '../components/UpgradeModal';
 
 function formatTotalDuration(seconds) {
   if (!seconds) return '';
@@ -47,8 +49,14 @@ export default function Library({ onNavigate }) {
     clearSelection,
   } = useLibrary();
 
+  const { isPro } = useAuth();
+  const isProUser = isPro();
   const [playingRecording, setPlayingRecording] = useState(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const FREE_LIMIT = 10;
+  const isAtLimit = !isProUser && allRecordings.length >= FREE_LIMIT;
 
   const totalDuration = allRecordings.reduce((sum, r) => sum + (r.duration || 0), 0);
   const totalSize = allRecordings.reduce((sum, r) => sum + (r.size || 0), 0);
@@ -128,8 +136,10 @@ export default function Library({ onNavigate }) {
 
         {/* Record button */}
         <button
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors flex-shrink-0"
-          onClick={() => onNavigate?.('record')}
+          className="flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors flex-shrink-0"
+          style={isAtLimit ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+          title={isAtLimit ? 'Upgrade to record more' : undefined}
+          onClick={() => isAtLimit ? setShowUpgradeModal(true) : onNavigate?.('record')}
         >
           <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
             <circle cx="10" cy="10" r="10" />
@@ -141,7 +151,10 @@ export default function Library({ onNavigate }) {
       {/* Stats bar */}
       {allRecordings.length > 0 && (
         <div className="px-6 py-1.5 border-b border-white/5 text-xs text-white/25 flex-shrink-0">
-          {allRecordings.length} recording{allRecordings.length !== 1 ? 's' : ''}
+          {isProUser
+            ? `${allRecordings.length} recording${allRecordings.length !== 1 ? 's' : ''} · unlimited`
+            : `${allRecordings.length}/10 recording${allRecordings.length !== 1 ? 's' : ''} · upgrade for unlimited`
+          }
           {totalDuration > 0 && ` · ${formatTotalDuration(totalDuration)}`}
           {totalSize > 0 && ` · ${formatTotalSize(totalSize)}`}
         </div>
@@ -170,6 +183,30 @@ export default function Library({ onNavigate }) {
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
+        {/* Free tier limit banner */}
+        {isAtLimit && (
+          <div
+            className="flex items-center justify-between mb-4 rounded-lg px-4 py-3"
+            style={{ background: '#1a1228', border: '1px solid #3d2a5a' }}
+          >
+            <div>
+              <p className="text-sm" style={{ color: '#ccc' }}>
+                You've reached the 10 recording limit
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: '#999' }}>
+                Upgrade to Pro for unlimited recordings
+              </p>
+            </div>
+            <button
+              className="text-sm font-semibold ml-4 flex-shrink-0"
+              style={{ color: '#a78bfa' }}
+              onClick={() => setShowUpgradeModal(true)}
+            >
+              Upgrade →
+            </button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3 text-white/30">
@@ -224,6 +261,8 @@ export default function Library({ onNavigate }) {
           onOpenInFinder={openInFinder}
         />
       )}
+
+      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </div>
   );
 }

@@ -92,6 +92,7 @@ export function AuthProvider({ children }) {
         plan: profile.plan,
         share_links_used: profile.share_links_used
       })
+      await window.electron.invoke('save-user-plan', { plan: profile.plan })
 
       return { success: true }
     } catch (err) {
@@ -104,6 +105,7 @@ export function AuthProvider({ children }) {
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     await window.electron.invoke('clear-session')
+    window.electron.invoke('save-user-plan', { plan: 'free' })
     setUser(null)
   }, [])
 
@@ -136,6 +138,7 @@ export function AuthProvider({ children }) {
             plan: profile.plan,
             share_links_used: profile.share_links_used
           })
+          window.electron.invoke('save-user-plan', { plan: profile.plan })
           setIsLoading(false)
         }
       }

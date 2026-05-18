@@ -15,19 +15,26 @@ fluentFfmpeg.setFfprobePath(fixAsarPath(ffprobeStatic.path))
 
 const MERGE_DISTANCE_SEC = 1.5
 
-async function convertWithoutZoom(inputPath, outputPath, fps, onProgress) {
+async function convertWithoutZoom(inputPath, outputPath, fps, onProgress, isPro = false) {
   const encoder = await detectHardwareEncoder()
   const isHW = encoder !== 'libx264'
   console.log('[zoom] plain convert — encoder:', encoder, '| input:', inputPath, '| output:', outputPath)
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
   return new Promise((resolve, reject) => {
-    const proc = fluentFfmpeg(inputPath)
+    let proc = fluentFfmpeg(inputPath)
       .videoCodec(encoder)
       .addOutputOption(isHW ? '-rc:v vbr' : '-crf 23')
       .addOutputOption(isHW ? '-cq:v 23' : '-preset ultrafast')
       .outputOptions('-movflags +faststart')
       .audioCodec('aac')
       .audioBitrate('128k')
+    if (!isPro) {
+      proc = proc.videoFilter(
+        "drawtext=text='Recorded with ReplayFlow · replayflow.io'" +
+        ":fontsize=18:fontcolor=white@0.5:x=w-tw-20:y=h-th-20" +
+        ":shadowcolor=black@0.4:shadowx=1:shadowy=1"
+      )
+    }
     if (fps && fps >= 1 && fps <= 120) proc.addOutputOption(`-r ${fps}`)
     proc.output(outputPath)
       .on('start', (cmd) => console.log('[zoom] plain convert command:', cmd))
@@ -121,6 +128,7 @@ export async function processZoom(
   screenDimensions,
   videoMetadata,
   settings,
+  isPro,
   onProgress,
   scaleFactor = 1,
   recordingStartTime = 0
@@ -131,7 +139,7 @@ export async function processZoom(
 
   if (duration < 1 || clickEvents.length === 0) {
     console.log('[zoom] No click events — converting without zoom')
-    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress, isPro)
   }
 
   const totalFrames = Math.floor(duration * fps)
@@ -152,7 +160,7 @@ export async function processZoom(
 
   if (safeClicks.length === 0) {
     console.log('[zoom] No safe clicks — converting without zoom')
-    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress, isPro)
   }
 
   const normalizedX = (x) => (x / scaleFactor) / vw
@@ -185,7 +193,7 @@ export async function processZoom(
   console.log('[zoom] zoom windows after merge:', zoomWindows.length)
   if (zoomWindows.length === 0) {
     console.log('[zoom] No valid zoom windows — converting without zoom')
-    return convertWithoutZoom(inputPath, outputPath, fps, onProgress)
+    return convertWithoutZoom(inputPath, outputPath, fps, onProgress, isPro)
   }
 
   const zoomFilter = buildZoompanFilter(zoomWindows, vw, vh, fps, duration)
@@ -199,10 +207,19 @@ export async function processZoom(
   const isHW = encoder !== 'libx264'
   console.log('[zoom] encoder:', encoder)
 
+  const filters = [zoomFilter]
+  if (!isPro) {
+    filters.push(
+      "drawtext=text='Recorded with ReplayFlow · replayflow.io'" +
+      ":fontsize=18:fontcolor=white@0.5:x=w-tw-20:y=h-th-20" +
+      ":shadowcolor=black@0.4:shadowx=1:shadowy=1"
+    )
+  }
+
   return new Promise((resolve, reject) => {
     fluentFfmpeg(inputPath)
       .addOption('-y')
-      .videoFilter(zoomFilter)
+      .videoFilter(filters)
       .videoCodec(encoder)
       .addOutputOption(isHW ? '-rc:v vbr' : '-crf 23')
       .addOutputOption(isHW ? '-cq:v 23' : '-preset ultrafast')

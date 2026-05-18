@@ -10,6 +10,7 @@ export async function processRecording({
   screenWidth,
   screenHeight,
   settings,
+  isPro,
   onProgress
 }) {
   console.log('[processor] Starting processRecording:', { webmPath, screenWidth, screenHeight })
@@ -63,6 +64,7 @@ export async function processRecording({
     { width: screenWidth, height: screenHeight },
     effectiveMetadata,
     settings?.recording,
+    isPro,
     (p) => {
       console.log('[processor] process progress:', p.percent + '%', p.timemark)
       onProgress({

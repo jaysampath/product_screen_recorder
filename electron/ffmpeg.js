@@ -156,7 +156,7 @@ export async function extractThumbnail(filePath) {
   return `data:image/jpeg;base64,${data.toString('base64')}`
 }
 
-export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
+export function convertToMp4(inputPath, outputPath, onProgress, fps = null, isPro = false) {
   return new Promise(async (resolve, reject) => {
     try {
       await fs.access(inputPath)
@@ -176,7 +176,7 @@ export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
     const encoder = await detectHardwareEncoder()
     const isHW = encoder !== 'libx264'
     console.log('[ffmpeg] convertToMp4 started:', inputPath, '->', outputPath, '| encoder:', encoder)
-    const proc = fluentFfmpeg(inputPath)
+    let proc = fluentFfmpeg(inputPath)
       .addOption('-y')
       .videoCodec(encoder)
       .addOutputOption(isHW ? '-rc:v vbr' : '-crf 23')
@@ -184,6 +184,14 @@ export function convertToMp4(inputPath, outputPath, onProgress, fps = null) {
       .outputOptions('-movflags +faststart')
       .audioCodec('aac')
       .audioBitrate('128k')
+
+    if (!isPro) {
+      proc = proc.videoFilter(
+        "drawtext=text='Recorded with ReplayFlow · replayflow.io'" +
+        ":fontsize=18:fontcolor=white@0.5:x=w-tw-20:y=h-th-20" +
+        ":shadowcolor=black@0.4:shadowx=1:shadowy=1"
+      )
+    }
 
     // Force output fps to prevent WebM 1000/1 timebase causing massive frame duplication
     if (fps && fps >= 1 && fps <= 120) proc.addOutputOption(`-r ${fps}`)

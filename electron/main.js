@@ -620,6 +620,7 @@ ipcMain.handle(
     }
     const metadata = await getVideoMetadata(inputPath)
     const clickEvents = clickStore.exportForFFmpeg(recordingStartTime, metadata.fps)
+    const userPlan = store.get('auth.userPlan', 'free')
     return processZoom(
       inputPath,
       outputPath,
@@ -627,6 +628,7 @@ ipcMain.handle(
       { width: screenWidth, height: screenHeight },
       metadata,
       settings,
+      userPlan === 'pro',
       (progress) => event.sender.send('ffmpeg-progress', progress)
     )
   }
@@ -639,6 +641,7 @@ ipcMain.handle(
   async (event, { webmPath, recordingStartTime, recordingStopTime, screenWidth, screenHeight }) => {
     console.log('[main] start-processing invoked:', { webmPath, screenWidth, screenHeight })
     const settings = store.store
+    const userPlan = store.get('auth.userPlan', 'free')
     console.log('[main] settings.recording.autoZoom:', settings?.recording?.autoZoom)
     return processRecording({
       webmPath,
@@ -647,6 +650,7 @@ ipcMain.handle(
       screenWidth,
       screenHeight,
       settings,
+      isPro: userPlan === 'pro',
       onProgress: (progress) => {
         event.sender.send('processing-progress', progress)
       }
@@ -714,6 +718,15 @@ ipcMain.handle('clear-session', () => {
   store.delete('auth.access_token')
   store.delete('auth.refresh_token')
   return { success: true }
+})
+
+ipcMain.handle('save-user-plan', (_event, { plan }) => {
+  store.set('auth.userPlan', plan)
+  return { success: true }
+})
+
+ipcMain.handle('get-user-plan', () => {
+  return store.get('auth.userPlan', 'free')
 })
 
 ipcMain.handle('set-local-only', (_event, value) => {
