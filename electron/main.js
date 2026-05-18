@@ -196,6 +196,10 @@ function getRecordingsDir() {
 }
 
 function createWindow() {
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(__dirname, '../../resources/icon.png')
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -204,6 +208,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'default',
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,

@@ -183,12 +183,17 @@ function AppContent() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-2 mb-8">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-600 flex-shrink-0">
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <circle cx="10" cy="10" r="6" />
-            </svg>
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            <circle cx="18" cy="18" r="16" stroke="#a78bfa" strokeWidth="2"/>
+            <path d="M14 11 L14 25 L26 18 Z" fill="#a78bfa"/>
+            <line x1="28" y1="13" x2="34" y2="13" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="28" y1="18" x2="35" y2="18" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="28" y1="23" x2="34" y2="23" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <div style={{ display: 'flex' }}>
+            <span style={{ fontWeight: 600, color: '#ffffff', fontSize: '18px', letterSpacing: '-0.02em' }}>replay</span>
+            <span style={{ fontWeight: 300, color: '#a78bfa', fontSize: '18px', letterSpacing: '-0.02em' }}>flow</span>
           </div>
-          <span className="text-[15px] font-semibold tracking-tight text-white">ReplayFlow</span>
         </div>
 
         <p className="px-2 mb-1.5 text-[10px] font-medium tracking-widest text-gray-600 uppercase">
@@ -221,7 +226,7 @@ function AppContent() {
         <button
           onClick={() => setShowSourcePicker(true)}
           disabled={isRecording || isProcessing}
-          className="flex items-center gap-2.5 mx-2 mt-4 px-3 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+          className="flex items-center gap-2.5 mx-2 mt-4 px-3 py-2.5 rounded-lg bg-[#a78bfa] hover:bg-[#9167f0] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
         >
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <circle cx="10" cy="10" r="6" />
